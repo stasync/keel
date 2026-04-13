@@ -26,4 +26,21 @@ dotnet build $DI_PROJ --no-incremental --configuration $BUILD_CONFIGURATION --fo
 dotnet test $DI_TESTS_PROJ
 dotnet test $NETWORKING_TESTS_PROJ
 
+# Group output DLLs by target framework (discovered dynamically)
+OUT_DIR="$DOTNET_ARTIFACTS_DIR/delivery"
+rm -rf "$OUT_DIR"
+
+for framework_dir in "$DOTNET_ARTIFACTS_DIR"/bin/*/*/; do
+    framework=$(basename "$framework_dir")
+    mkdir -p "$OUT_DIR/$framework"
+    for dll in "$framework_dir"*.dll; do
+        [ -f "$dll" ] && cp "$dll" "$OUT_DIR/$framework/"
+    done
+    cp README.md "$OUT_DIR/$framework/"
+done
+
+echo "Output:"
+for dir in "$OUT_DIR"/*/; do
+    echo "  $dir: $(ls "$dir"*.dll 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
+done
 echo -e "\033[1;32mBuild complete!\033[0m"
