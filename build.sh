@@ -1,0 +1,29 @@
+reldir="$(dirname "$0")"
+cd "$reldir"
+BUILD_CONFIGURATION="release"
+DOTNET_ARTIFACTS_DIR="artifacts"
+
+# Project paths
+UTILS_PROJ="utils/utils.csproj"
+NETWORKING_PROJ="networking/networking.csproj"
+DI_PROJ="dependency_injection/dependency_injection.csproj"
+DI_TESTS_PROJ="dependency_injection_tests/dependency_injection_tests.csproj"
+NETWORKING_TESTS_PROJ="networking_tests/networking_tests.csproj"
+
+rm -rf $DOTNET_ARTIFACTS_DIR
+
+#https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-build
+dotnet clean $UTILS_PROJ
+dotnet clean $NETWORKING_PROJ
+dotnet clean $DI_PROJ
+dotnet clean $DI_TESTS_PROJ
+dotnet clean $NETWORKING_TESTS_PROJ
+
+dotnet build $UTILS_PROJ --no-incremental --configuration $BUILD_CONFIGURATION --force --artifacts-path $DOTNET_ARTIFACTS_DIR
+dotnet build $NETWORKING_PROJ --no-incremental --configuration $BUILD_CONFIGURATION --force --artifacts-path $DOTNET_ARTIFACTS_DIR
+dotnet build $DI_PROJ --no-incremental --configuration $BUILD_CONFIGURATION --force --artifacts-path $DOTNET_ARTIFACTS_DIR
+
+dotnet test $DI_TESTS_PROJ
+dotnet test $NETWORKING_TESTS_PROJ
+
+echo -e "\033[1;32mBuild complete!\033[0m"
