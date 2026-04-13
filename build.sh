@@ -27,8 +27,8 @@ dotnet test $DI_TESTS_PROJ
 dotnet test $NETWORKING_TESTS_PROJ
 
 # Group output DLLs by target framework (discovered dynamically)
+# No need to delete this directory as its a part of the artifacts directory which is cleaned at the start of the script
 OUT_DIR="$DOTNET_ARTIFACTS_DIR/delivery"
-rm -rf "$OUT_DIR"
 
 for framework_dir in "$DOTNET_ARTIFACTS_DIR"/bin/*/*/; do
     framework=$(basename "$framework_dir")
