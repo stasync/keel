@@ -6,7 +6,7 @@ namespace Core.Networking.Udp.LowLevel.DataTransferLayers
 {
     public sealed class DataTransferAmountCaptureLayer : UdpReliableProtocol.DataTransferLayer
     {
-        public int Sent
+        public int BytesSent
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get;
@@ -14,7 +14,7 @@ namespace Core.Networking.Udp.LowLevel.DataTransferLayers
             private set;
         }
 
-        public int Received
+        public int BytesReceived
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get;
@@ -22,10 +22,32 @@ namespace Core.Networking.Udp.LowLevel.DataTransferLayers
             private set;
         }
 
-        public override void ProcessOutgoingData(IPEndPoint targetEndPoint, ref ArraySegment<byte> data) =>
-            Sent += data.Count;
+        public int PacketsSent
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private set;
+        }
 
-        public override void ProcessIncomingData(IPEndPoint senderEndPoint, ref ArraySegment<byte> data) =>
-            Received += data.Count;
+        public int PacketsReceived
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private set;
+        }
+
+        public override void ProcessOutgoingData(IPEndPoint targetEndPoint, ref ArraySegment<byte> data)
+        {
+            BytesSent += data.Count;
+            PacketsSent++;
+        }
+
+        public override void ProcessIncomingData(IPEndPoint senderEndPoint, ref ArraySegment<byte> data)
+        {
+            BytesReceived += data.Count;
+            PacketsReceived++;
+        }
     }
 }
