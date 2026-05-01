@@ -1,4 +1,5 @@
 ﻿using Core.Networking.Udp;
+using Core.Networking.Udp.LowLevel;
 using System.Net;
 
 namespace Core.Networking.Tests
@@ -12,10 +13,13 @@ namespace Core.Networking.Tests
 
         private readonly ReliableUdpListener _server;
         private readonly ReliableUdpClient[] _clients = new ReliableUdpClient[8];
+        private readonly HashSet<string> _unexpectedClientActions = new();
 
         public HighLevelUpdTests()
         {
             _server = new ReliableUdpListener(maxConnections: 16, port: 0, protocolKey: 0);
+            _server.UnexpectedClientAction += (_, s) =>
+                _unexpectedClientActions.Add(s);
 
             for (var i = 0; i < _clients.Length; i++)
                 _clients[i] = new ReliableUdpClient();
@@ -62,6 +66,8 @@ namespace Core.Networking.Tests
                         {
                             trackedClientConnections.Remove(connectionUid);
                         };
+
+                        client.Send(data: new byte[] { 1, 2, 3 }, UdpFullProtocol.DgramDeliveryMethod.Unreliable);
                     };
 
                     client.Connect(new IPEndPoint(localAddress, _server.Port));
@@ -163,6 +169,9 @@ namespace Core.Networking.Tests
                 foreach (var client in _clients)
                     Assert.False(client.IsConnected);
             }
+
+            // Check if there was any unexpected behavior registered.
+            Assert.True(_unexpectedClientActions.Count == 0);
         }
     }
 }

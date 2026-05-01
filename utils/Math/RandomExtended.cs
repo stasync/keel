@@ -52,13 +52,6 @@ namespace Core.Utils.Math
             return str[..System.Math.Min(5, str.Length)];
         }
 
-        /// <summary>
-        /// Pseudo unique integer.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int UniqueIdInt() =>
-            Int(9999, 99999);
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string NumString(int length) =>
             String(format: "0123456789", length);
@@ -80,6 +73,10 @@ namespace Core.Utils.Math
             Int(0, array.Length);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Int() =>
+            _internalRandom.Next(int.MinValue, int.MaxValue);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Int(int threshold) =>
             _internalRandom.Next(-threshold, threshold);
 
@@ -88,8 +85,12 @@ namespace Core.Utils.Math
             _internalRandom.Next(min, max);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Int(uint min, uint max) =>
-            _internalRandom.Next((int)min, (int)max);
+        public byte[] GetBytes(int length)
+        {
+            var bytes = new byte[length];
+            _internalRandom.NextBytes(bytes);
+            return bytes;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public float Float(float threshold) =>
@@ -101,7 +102,7 @@ namespace Core.Utils.Math
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Bool() =>
-            _internalRandom.Next(100) % 2 == 0;
+            _internalRandom.Next(maxValue: 100) % 2 == 0;
 
         /// <summary>
         /// True percentage (0 - 100).

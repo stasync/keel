@@ -14,14 +14,16 @@ namespace Core.Networking.Udp
         {
             public readonly IPEndPoint ConnectionEndPoint;
             public readonly uint ConnectionUid;
+            public readonly uint ValidationUid;
             public readonly byte Slot;
             public DateTime LastHeartbeatReceiveTime { get; internal set; }
             public DateTime LastHeatBeatSentTime { get; internal set; }
 
-            public ConnectionState(IPEndPoint connectionEndPoint, uint connectionUid, byte slot)
+            public ConnectionState(IPEndPoint connectionEndPoint, uint connectionUid, uint validationUid, byte slot)
             {
                 ConnectionEndPoint = connectionEndPoint;
                 ConnectionUid = connectionUid;
+                ValidationUid = validationUid;
                 Slot = slot;
             }
         }
@@ -53,6 +55,7 @@ namespace Core.Networking.Udp
 
         public bool IsConnected => _connectionState != null;
         public uint ConnectionUid => IsConnected ? _connectionState.ConnectionUid : 0;
+        public uint ValidationUid => IsConnected ? _connectionState.ValidationUid : 0;
 
         private UdpFullProtocol _protocol;
         private ConnectionState _connectionState;
@@ -98,6 +101,7 @@ namespace Core.Networking.Udp
             _dataWriter.SeekZero();
             _dataWriter.WriteByte((byte)ReliableUdpListener.ClientMessageCodes.Data);
             _dataWriter.WritePackedUInt32(_connectionState.ConnectionUid);
+            _dataWriter.WritePackedUInt32(_connectionState.ValidationUid);
             _dataWriter.WriteByte(_connectionState.Slot);
             _dataWriter.WriteBytesAndSize(data);
             _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), dgramDeliveryMethod);
@@ -142,6 +146,7 @@ namespace Core.Networking.Udp
             _dataWriter.SeekZero();
             _dataWriter.WriteByte((byte)ReliableUdpListener.ClientMessageCodes.Heartbeat);
             _dataWriter.WritePackedUInt32(_connectionState.ConnectionUid);
+            _dataWriter.WritePackedUInt32(_connectionState.ValidationUid);
             _dataWriter.WriteByte(_connectionState.Slot);
             _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
 
@@ -167,8 +172,9 @@ namespace Core.Networking.Udp
             {
                 case ServerMessageCodes.ConnectConfirmed:
                     var connectionUid = _dataReader.ReadPackedUInt32();
+                    var validationUid = _dataReader.ReadPackedUInt32();
                     var slot = _dataReader.ReadByte();
-                    _connectionState = new ConnectionState(incomingDataSnapshot.EndPoint, connectionUid, slot)
+                    _connectionState = new ConnectionState(incomingDataSnapshot.EndPoint, connectionUid, validationUid, slot)
                     {
                         LastHeartbeatReceiveTime = DateTime.UtcNow,
                         LastHeatBeatSentTime = DateTime.UtcNow
@@ -196,6 +202,7 @@ namespace Core.Networking.Udp
                         var payload = _dataReader.ReadBytesAndSize();
                         DataReceived(payload, (UdpFullProtocol.DgramDeliveryMethod)incomingDataSnapshot.ProtocolPrefix);
                     }
+
                     break;
 
                 case ServerMessageCodes.Disconnect:

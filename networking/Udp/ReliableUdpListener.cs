@@ -1,6 +1,7 @@
 ﻿using Core.Networking.Udp.LowLevel;
 using Core.Utils;
 using Core.Utils.Debug;
+using Core.Utils.Math;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -37,11 +38,15 @@ namespace Core.Networking.Udp
         private sealed class Connection
         {
             internal readonly uint Uid;
+            internal readonly uint ValidationUid;
             internal IPEndPoint EndPoint { get; set; }
             internal DateTime LastHeartbeatTime { get; set; }
 
-            internal Connection(uint uid) =>
+            internal Connection(uint uid, uint validationUid)
+            {
                 Uid = uid;
+                ValidationUid = validationUid;
+            }
         }
 
         private sealed class KnownEndpointTracker
@@ -145,7 +150,9 @@ namespace Core.Networking.Udp
                 _dataWriter.SeekZero();
                 if (targetConnectionSlot >= 0)
                 {
-                    var newConnectionInstance = new Connection(_connectionUidProvider.Next())
+                    var uid = _connectionUidProvider.Next();
+                    var validationUid = (uint)RandomExtended.Default.Int();
+                    var newConnectionInstance = new Connection(uid, validationUid)
                     {
                         EndPoint = newConnectionRequest.EndPoint,
                         LastHeartbeatTime = DateTime.UtcNow
@@ -158,6 +165,7 @@ namespace Core.Networking.Udp
 
                     _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.ConnectConfirmed);
                     _dataWriter.WritePackedUInt32(newConnectionInstance.Uid);
+                    _dataWriter.WritePackedUInt32(newConnectionInstance.ValidationUid);
                     _dataWriter.WriteByte((byte)targetConnectionSlot);
 
                     _protocol.SendTo(newConnectionRequest.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
@@ -233,12 +241,19 @@ namespace Core.Networking.Udp
                 case ClientMessageCodes.Heartbeat:
                     {
                         var connectionUid = _dataReader.ReadPackedUInt32();
+                        var validationUid = _dataReader.ReadPackedUInt32();
                         var connectionSlot = _dataReader.ReadByte();
 
                         var connection = _connectionSlots[connectionSlot];
-                        if (connection == null || connection.Uid != connectionUid)
+                        if (connection == null)
                         {
                             UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                            break;
+                        }
+
+                        if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
+                        {
+                            UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
                             break;
                         }
 
@@ -255,12 +270,19 @@ namespace Core.Networking.Udp
                 case ClientMessageCodes.Data:
                     {
                         var connectionUid = _dataReader.ReadPackedUInt32();
+                        var validationUid = _dataReader.ReadPackedUInt32();
                         var connectionSlot = _dataReader.ReadByte();
 
                         var connection = _connectionSlots[connectionSlot];
-                        if (connection == null || connection.Uid != connectionUid)
+                        if (connection == null)
                         {
                             UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                            break;
+                        }
+
+                        if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
+                        {
+                            UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
                             break;
                         }
 
