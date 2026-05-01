@@ -224,76 +224,85 @@ namespace Core.Networking.Udp
 
         private void ProcessData(in IncomingDataSnapshot incomingDataSnapshot)
         {
-            _knownEndpointTracker.OnDataReceived(incomingDataSnapshot.EndPoint);
-
-            _dataReader.Replace(incomingDataSnapshot.Buffer);
-            var messageCode = (ClientMessageCodes)_dataReader.ReadByte();
-
-            switch (messageCode)
+            // As we process incoming data, we should always be ready that it might in some incorrect format.
+            try
             {
-                case ClientMessageCodes.Connect:
-                    {
-                        var connectionData = _dataReader.ReadString();
-                        _connectionRequests.Enqueue(new ConnectionRequest(connectionData, incomingDataSnapshot.EndPoint));
-                    }
-                    break;
+                _knownEndpointTracker.OnDataReceived(incomingDataSnapshot.EndPoint);
 
-                case ClientMessageCodes.Heartbeat:
-                    {
-                        var connectionUid = _dataReader.ReadPackedUInt32();
-                        var validationUid = _dataReader.ReadPackedUInt32();
-                        var connectionSlot = _dataReader.ReadByte();
+                _dataReader.Replace(incomingDataSnapshot.Buffer);
+                var messageCode = (ClientMessageCodes)_dataReader.ReadByte();
 
-                        var connection = _connectionSlots[connectionSlot];
-                        if (connection == null)
+                switch (messageCode)
+                {
+                    case ClientMessageCodes.Connect:
                         {
-                            UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
-                            break;
+                            var connectionData = _dataReader.ReadString();
+                            _connectionRequests.Enqueue(new ConnectionRequest(connectionData, incomingDataSnapshot.EndPoint));
                         }
+                        break;
 
-                        if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
+                    case ClientMessageCodes.Heartbeat:
                         {
-                            UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
-                            break;
+                            var connectionUid = _dataReader.ReadPackedUInt32();
+                            var validationUid = _dataReader.ReadPackedUInt32();
+                            var connectionSlot = _dataReader.ReadByte();
+
+                            var connection = _connectionSlots[connectionSlot];
+                            if (connection == null)
+                            {
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                                break;
+                            }
+
+                            if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
+                            {
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
+                                break;
+                            }
+
+                            // Update heartbeat.
+                            connection.LastHeartbeatTime = DateTime.UtcNow;
+
+                            // Add the connection for entry point if it not exists.
+                            _dataWriter.SeekZero();
+                            _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Heartbeat);
+                            _protocol.SendTo(incomingDataSnapshot.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
                         }
+                        break;
 
-                        // Update heartbeat.
-                        connection.LastHeartbeatTime = DateTime.UtcNow;
-
-                        // Add the connection for entry point if it not exists.
-                        _dataWriter.SeekZero();
-                        _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Heartbeat);
-                        _protocol.SendTo(incomingDataSnapshot.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
-                    }
-                    break;
-
-                case ClientMessageCodes.Data:
-                    {
-                        var connectionUid = _dataReader.ReadPackedUInt32();
-                        var validationUid = _dataReader.ReadPackedUInt32();
-                        var connectionSlot = _dataReader.ReadByte();
-
-                        var connection = _connectionSlots[connectionSlot];
-                        if (connection == null)
+                    case ClientMessageCodes.Data:
                         {
-                            UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
-                            break;
+                            var connectionUid = _dataReader.ReadPackedUInt32();
+                            var validationUid = _dataReader.ReadPackedUInt32();
+                            var connectionSlot = _dataReader.ReadByte();
+
+                            var connection = _connectionSlots[connectionSlot];
+                            if (connection == null)
+                            {
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                                break;
+                            }
+
+                            if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
+                            {
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
+                                break;
+                            }
+
+                            var payload = _dataReader.ReadBytesAndSize();
+                            DataReceived(connection.Uid, payload, (UdpFullProtocol.DgramDeliveryMethod)incomingDataSnapshot.ProtocolPrefix);
                         }
+                        break;
 
-                        if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
-                        {
-                            UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
-                            break;
-                        }
-
-                        var payload = _dataReader.ReadBytesAndSize();
-                        DataReceived(connection.Uid, payload, (UdpFullProtocol.DgramDeliveryMethod)incomingDataSnapshot.ProtocolPrefix);
-                    }
-                    break;
-
-                default:
-                    UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected message code: '{messageCode}'");
-                    break;
+                    default:
+                        UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected message code: '{messageCode}'");
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogException(e);
+                UnexpectedClientAction(incomingDataSnapshot.EndPoint, e.Message);
             }
         }
 
