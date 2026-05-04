@@ -1,11 +1,11 @@
 ﻿using Core.Networking.Udp.LowLevel;
 using Core.Utils;
 using Core.Utils.Debug;
-using Core.Utils.Math;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 
 namespace Core.Networking.Udp
 {
@@ -151,7 +151,7 @@ namespace Core.Networking.Udp
                 if (targetConnectionSlot >= 0)
                 {
                     var uid = _connectionUidProvider.Next();
-                    var validationUid = (uint)RandomExtended.Default.Int();
+                    var validationUid = (uint)RandomNumberGenerator.GetInt32(int.MinValue, int.MaxValue);
                     var newConnectionInstance = new Connection(uid, validationUid)
                     {
                         EndPoint = newConnectionRequest.EndPoint,
