@@ -1,0 +1,14 @@
+# This repo stores CRLF in the blobs, matching .editorconfig (end_of_line = crlf).
+# `-text` disables git's EOL conversion entirely, so files are stored and checked
+# out byte-for-byte. This keeps git from silently rewriting line endings and
+# producing whole-file diffs.
+#
+# It does NOT stop an editor from saving LF. .editorconfig is what tells editors
+# to use CRLF -- keep both in agreement.
+
+* -text
+
+# Never normalize or diff binaries as text.
+*.dll binary
+*.so  binary
+*.pdb binary

@@ -141,56 +141,96 @@ namespace Core.Networking.Udp.LowLevel
 
         private sealed class DuplicateTracker
         {
-            private const int WINDOW_SIZE = 256;
-            private const int WINDOW_SIZE_ADVANCE_VALUE = WINDOW_SIZE / 4;
+            private const int BITS_PER_WORD = sizeof(ulong) * 8;
+            private const int WINDOW_WORD_COUNT = 32;
+            private const int WINDOW_SIZE = WINDOW_WORD_COUNT * BITS_PER_WORD;
+            private const uint WINDOW_INDEX_MASK = WINDOW_SIZE - 1;
 
-            private static readonly byte[] s_emptyShiftArray = new byte[WINDOW_SIZE];
+            // Circular bitset - the datagram 'uid' is tracked by the bit at 'uid % WINDOW_SIZE'. The window is anchored
+            // to the newest datagram seen, but its contents never move: advancing only has to clear the slots the window
+            // moved onto, which is a single bit for the usual case of the next datagram in sequence.
+            private readonly ulong[] _receivedPackets = new ulong[WINDOW_WORD_COUNT];
 
-            private uint _baseSequenceNumber;
-            private readonly byte[] _receivedPackets = new byte[WINDOW_SIZE];
+            private uint _highestSequenceNumber;
 
             internal bool IsDuplicate(uint sequenceNumber)
             {
-                // If sequence number is too old.
-                if (sequenceNumber < _baseSequenceNumber)
+                // The newest datagram so far - move the window up to it.
+                // NOTE: Datagram uids start from 1, so the initial state always takes this path.
+                if (sequenceNumber > _highestSequenceNumber)
+                {
+                    AdvanceTo(sequenceNumber);
+                    return false;
+                }
+
+                // Older than the window can remember. A late arrival is indistinguishable from a duplicate at this point.
+                if (_highestSequenceNumber - sequenceNumber >= WINDOW_SIZE)
                     return true;
 
-                // If sequence number is too far ahead, we need to adjust our window.
-                if (sequenceNumber >= _baseSequenceNumber + WINDOW_SIZE)
-                    AdvanceWindow(newBaseSequenceNumber: sequenceNumber - WINDOW_SIZE + WINDOW_SIZE_ADVANCE_VALUE);
-
-                var index = (int)(sequenceNumber - _baseSequenceNumber);
-                if (_receivedPackets[index] == 1)
+                if (IsReceived(sequenceNumber))
                     return true;
 
-                _receivedPackets[index] = 1;
+                SetReceived(sequenceNumber);
                 return false;
             }
 
-            private void AdvanceWindow(uint newBaseSequenceNumber)
+            private void AdvanceTo(uint sequenceNumber)
             {
-                var shiftAmount = newBaseSequenceNumber - _baseSequenceNumber;
-                if (shiftAmount > WINDOW_SIZE)
-                    shiftAmount %= WINDOW_SIZE;
+                var advancedBy = sequenceNumber - _highestSequenceNumber;
 
-                if (shiftAmount != WINDOW_SIZE)
+                // The window moved past everything it held, so no mark is worth keeping.
+                if (advancedBy >= WINDOW_SIZE)
+                    Array.Clear(_receivedPackets, index: 0, length: WINDOW_WORD_COUNT);
+                // Every slot between the old and the new head still holds the state of the datagram that just fell out
+                // of the window. The next datagram in sequence skips this entirely - it lands on the only slot we are
+                // about to set anyway.
+                else if (advancedBy > 1)
+                    ClearRange(_highestSequenceNumber + 1, advancedBy - 1);
+
+                _highestSequenceNumber = sequenceNumber;
+                SetReceived(sequenceNumber);
+            }
+
+            /// <summary>
+            /// Clears <paramref name="count"/> consecutive slots starting at <paramref name="from"/>, wrapping around
+            /// the end of the bitset. Clears whole words at a time, so the cost is bound by the word count rather than
+            /// by how far the window moved.
+            /// </summary>
+            private void ClearRange(uint from, uint count)
+            {
+                var index = from & WINDOW_INDEX_MASK;
+                var word = (int)(index / BITS_PER_WORD);
+                var bit = (int)(index % BITS_PER_WORD);
+
+                while (count > 0)
                 {
-                    Buffer.BlockCopy(
-                        src: _receivedPackets,
-                        srcOffset: (int)shiftAmount,
-                        dst: _receivedPackets,
-                        dstOffset: 0,
-                        count: WINDOW_SIZE - (int)shiftAmount);
+                    var bitsInThisWord = Math.Min((int)count, BITS_PER_WORD - bit);
 
-                    Buffer.BlockCopy(
-                        src: s_emptyShiftArray,
-                        srcOffset: 0,
-                        dst: _receivedPackets,
-                        dstOffset: WINDOW_SIZE - (int)shiftAmount,
-                        count: (int)shiftAmount);
+                    // A full word cannot be expressed as a shifted mask - '1UL << 64' is not a zero shift here.
+                    var mask = bitsInThisWord == BITS_PER_WORD
+                        ? ulong.MaxValue
+                        : ((1UL << bitsInThisWord) - 1) << bit;
+
+                    _receivedPackets[word] &= ~mask;
+
+                    count -= (uint)bitsInThisWord;
+                    bit = 0;
+                    word = word + 1 == WINDOW_WORD_COUNT ? 0 : word + 1;
                 }
+            }
 
-                _baseSequenceNumber = newBaseSequenceNumber;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private bool IsReceived(uint sequenceNumber)
+            {
+                var index = sequenceNumber & WINDOW_INDEX_MASK;
+                return (_receivedPackets[index / BITS_PER_WORD] & (1UL << (int)(index % BITS_PER_WORD))) != 0;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private void SetReceived(uint sequenceNumber)
+            {
+                var index = sequenceNumber & WINDOW_INDEX_MASK;
+                _receivedPackets[index / BITS_PER_WORD] |= 1UL << (int)(index % BITS_PER_WORD);
             }
         }
 
