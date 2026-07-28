@@ -349,7 +349,6 @@ namespace Core.Networking.Udp
             while (_knownEndpointTracker.TryDequeuesInactive(out var inactiveEndPoint))
                 _protocol.RemoveEndPointData(inactiveEndPoint);
 
-
             _connectionUidScratchBuffer.Clear();
             _connectionUidScratchBuffer.AddRange(_recentDisconnectsLookup.Keys);
 
@@ -488,6 +487,7 @@ namespace Core.Networking.Udp
 
                 // Nothing to do, just drop.
                 _connectionSlots[i] = null;
+                _recentDisconnectsLookup[connection.Uid] = DateTime.UtcNow;
                 Disconnected(connection.Uid);
 
                 // Debug log.
