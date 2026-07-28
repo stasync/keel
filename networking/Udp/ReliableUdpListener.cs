@@ -81,7 +81,7 @@ namespace Core.Networking.Udp
 
         /// <summary>
         /// Derived from <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/> so the two horizons stay in
-        /// step: there is no point declaring a connection dead while the layer below is still retransmitting
+        /// the step: there is no point declaring a connection dead while the layer below is still retransmitting
         /// for it, nor retransmitting for a connection that is already gone.
         /// </summary>
         public const uint HEARTBEAT_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS;
@@ -103,7 +103,6 @@ namespace Core.Networking.Udp
         private readonly NetWriter _dataWriter = new();
         private readonly NetReader _dataReader = new();
         private readonly Dictionary<uint, DateTime> _recentDisconnectsLookup = new();
-        private readonly List<uint> _connectionUidScratchBuffer = new();
 
         private DateTime _nextKnownEndpointTrackerUpdateTime;
 
