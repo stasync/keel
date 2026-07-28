@@ -92,7 +92,7 @@ namespace Core.Networking.Udp
         private readonly KnownEndpointTracker _knownEndpointTracker = new();
         private readonly NetWriter _dataWriter = new();
         private readonly NetReader _dataReader = new();
-        private readonly Dictionary<uint, DateTime> _disconnectedConnectionTime = new();
+        private readonly Dictionary<uint, DateTime> _recentDisconnectsLookup = new();
         private readonly List<uint> _connectionUidScratchBuffer = new();
 
         private DateTime _nextKnownEndpointTrackerUpdateTime;
@@ -252,13 +252,8 @@ namespace Core.Networking.Udp
                             var connection = _connectionSlots[connectionSlot];
                             if (connection == null)
                             {
-                                if (_disconnectedConnectionTime.TryGetValue(connectionUid, out var lastHeartbeatTime))
-                                {
-                                    if ((DateTime.UtcNow - lastHeartbeatTime).TotalMilliseconds < HEARTBEAT_TIMEOUT_MS * 2)
-                                    {
-                                        UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
-                                    }
-                                }
+                                if (!_recentDisconnectsLookup.ContainsKey(connectionUid))
+                                    UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
 
                                 break;
                             }
@@ -288,7 +283,9 @@ namespace Core.Networking.Udp
                             var connection = _connectionSlots[connectionSlot];
                             if (connection == null)
                             {
-                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                                if (!_recentDisconnectsLookup.ContainsKey(connectionUid))
+                                    UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+
                                 break;
                             }
 
@@ -332,7 +329,7 @@ namespace Core.Networking.Udp
 
                 // Nothing to do, just drop.
                 _connectionSlots[i] = null;
-                _disconnectedConnectionTime[connection.Uid] = DateTime.UtcNow;
+                _recentDisconnectsLookup[connection.Uid] = DateTime.UtcNow;
 
                 Logger.LogInfo($"[{GetType().FullName}] Connection ' {connection.Uid}' disconnected due to heartbeat timeout ({heartBeatDelta.TotalMilliseconds})ms.");
 
@@ -354,16 +351,16 @@ namespace Core.Networking.Udp
 
 
             _connectionUidScratchBuffer.Clear();
-            _connectionUidScratchBuffer.AddRange(_disconnectedConnectionTime.Keys);
+            _connectionUidScratchBuffer.AddRange(_recentDisconnectsLookup.Keys);
 
             foreach (var connectionId in _connectionUidScratchBuffer)
             {
-                if (!_disconnectedConnectionTime.TryGetValue(connectionId, out var disconnectTime))
+                if (!_recentDisconnectsLookup.TryGetValue(connectionId, out var disconnectTime))
                     continue;
 
                 var delta = (DateTime.UtcNow - disconnectTime).TotalMilliseconds;
                 if (delta > HEARTBEAT_TIMEOUT_MS)
-                    _disconnectedConnectionTime.Remove(connectionId);
+                    _recentDisconnectsLookup.Remove(connectionId);
             }
         }
 
