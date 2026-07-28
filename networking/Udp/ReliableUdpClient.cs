@@ -148,7 +148,12 @@ namespace Core.Networking.Udp
             _dataWriter.WritePackedUInt32(_connectionState.ConnectionUid);
             _dataWriter.WritePackedUInt32(_connectionState.ValidationUid);
             _dataWriter.WriteByte(_connectionState.Slot);
-            _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+
+            // NOTE: heartbeats are deliberately unreliable. A reliable one is resent on every Poll tick until
+            // it is acked, and every copy is acked in turn, so the cost of a fixed heartbeat rate would scale
+            // with latency. A lost heartbeat needs no recovery - the next one follows in
+            // HEARTBEAT_SEND_TIMEOUT_MS, and HEARTBEAT_TIMEOUT_MS tolerates roughly 20 consecutive losses.
+            _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
 
             HeartbeatSent();
         }

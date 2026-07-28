@@ -270,7 +270,9 @@ namespace Core.Networking.Udp
                             // Add the connection for entry point if it not exists.
                             _dataWriter.SeekZero();
                             _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Heartbeat);
-                            _protocol.SendTo(incomingDataSnapshot.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+
+                            // NOTE: unreliable for the same reason as the client side heartbeat - see TrySendHeartbeat.
+                            _protocol.SendTo(incomingDataSnapshot.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
                         }
                         break;
 
