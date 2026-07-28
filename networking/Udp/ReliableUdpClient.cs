@@ -172,7 +172,7 @@ namespace Core.Networking.Udp
         {
             // As we process incoming data, we should always be ready that it might in some incorrect format.
             // NOTE: a malformed datagram must never escape Update(), otherwise the client stops updating
-            // entirely: it stops heartbeating, never runs its own timeout check, logs nothing, and the
+            // entirely: it stops heart beating, never runs its own timeout check, logs nothing, and the
             // server drops it once HEARTBEAT_TIMEOUT_MS elapses.
             try
             {

@@ -39,7 +39,12 @@ namespace Core.Networking.Udp
         {
             internal readonly uint Uid;
             internal readonly uint ValidationUid;
+
+            /// <summary>
+            /// Where outgoing data is sent. Pinned at connection - see ReportEndPointChange.
+            /// </summary>
             internal IPEndPoint EndPoint { get; set; }
+
             internal DateTime LastHeartbeatTime { get; set; }
 
             internal Connection(uint uid, uint validationUid)
@@ -185,7 +190,7 @@ namespace Core.Networking.Udp
                     _dataWriter.WriteByte((byte)rejectionReason);
                     _protocol.SendTo(newConnectionRequest.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
 
-                    // Connection rejected - lets also cleanup endpoint data.
+                    // Connection rejected - lets also clean up endpoint data.
                     _protocol.RemoveEndPointData(newConnectionRequest.EndPoint);
                 }
             }
@@ -264,6 +269,12 @@ namespace Core.Networking.Udp
                                 break;
                             }
 
+                            if (!incomingDataSnapshot.EndPoint.Equals(connection.EndPoint))
+                            {
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connection.Uid}' is now arriving from '{incomingDataSnapshot.EndPoint}' but stays pinned to '{connection.EndPoint}'. Outgoing data keeps targeting the pinned address, so this client may stop receiving while still appearing connected");
+                                break;
+                            }
+
                             // Update heartbeat.
                             connection.LastHeartbeatTime = DateTime.UtcNow;
 
@@ -294,6 +305,12 @@ namespace Core.Networking.Udp
                             if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
                             {
                                 UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
+                                break;
+                            }
+
+                            if (!incomingDataSnapshot.EndPoint.Equals(connection.EndPoint))
+                            {
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connection.Uid}' is now arriving from '{incomingDataSnapshot.EndPoint}' but stays pinned to '{connection.EndPoint}'. Outgoing data keeps targeting the pinned address, so this client may stop receiving while still appearing connected");
                                 break;
                             }
 
