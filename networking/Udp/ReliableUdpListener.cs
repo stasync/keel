@@ -58,13 +58,17 @@ namespace Core.Networking.Udp
         {
             private readonly Dictionary<IPEndPoint, DateTime> _knownEndpointStates = new();
             private readonly Queue<IPEndPoint> _knownEndpointsToRemove = new();
+            private readonly List<IPEndPoint> _knownEndpointStatesIterator = new();
 
             internal void OnDataReceived(IPEndPoint endpoint) =>
                 _knownEndpointStates[endpoint] = DateTime.UtcNow;
 
             internal void Update()
             {
-                foreach (var knownEndPoint in _knownEndpointStates.Keys)
+                _knownEndpointStatesIterator.Clear();
+                _knownEndpointStatesIterator.AddRange(_knownEndpointStates.Keys);
+
+                foreach (var knownEndPoint in _knownEndpointStatesIterator)
                 {
                     var lastUpdateTime = _knownEndpointStates[knownEndPoint];
                     if ((DateTime.UtcNow - lastUpdateTime).TotalMilliseconds < HEARTBEAT_TIMEOUT_MS * 2)
@@ -372,10 +376,7 @@ namespace Core.Networking.Udp
             while (_knownEndpointTracker.TryDequeuesInactive(out var inactiveEndPoint))
                 _protocol.RemoveEndPointData(inactiveEndPoint);
 
-            _connectionUidScratchBuffer.Clear();
-            _connectionUidScratchBuffer.AddRange(_recentDisconnectsLookup.Keys);
-
-            foreach (var connectionId in _connectionUidScratchBuffer)
+            foreach (var connectionId in new List<uint>(_recentDisconnectsLookup.Keys))
             {
                 if (!_recentDisconnectsLookup.TryGetValue(connectionId, out var disconnectTime))
                     continue;
