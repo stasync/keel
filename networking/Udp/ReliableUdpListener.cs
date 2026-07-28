@@ -92,6 +92,8 @@ namespace Core.Networking.Udp
         private readonly KnownEndpointTracker _knownEndpointTracker = new();
         private readonly NetWriter _dataWriter = new();
         private readonly NetReader _dataReader = new();
+        private readonly Dictionary<uint, DateTime> _disconnectedConnectionTime = new();
+        private readonly List<uint> _connectionUidScratchBuffer = new();
 
         private DateTime _nextKnownEndpointTrackerUpdateTime;
 
@@ -158,7 +160,7 @@ namespace Core.Networking.Udp
                         LastHeartbeatTime = DateTime.UtcNow
                     };
 
-                    // Respond to client and register connection.
+                    // Respond to a client and register a connection.
                     _connectionSlots[targetConnectionSlot] = newConnectionInstance;
 
                     Connected(newConnectionInstance.Uid, newConnectionRequest);
@@ -250,7 +252,14 @@ namespace Core.Networking.Udp
                             var connection = _connectionSlots[connectionSlot];
                             if (connection == null)
                             {
-                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                                if (_disconnectedConnectionTime.TryGetValue(connectionUid, out var lastHeartbeatTime))
+                                {
+                                    if ((DateTime.UtcNow - lastHeartbeatTime).TotalMilliseconds < HEARTBEAT_TIMEOUT_MS * 2)
+                                    {
+                                        UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' is not yet registered: '{messageCode}'");
+                                    }
+                                }
+
                                 break;
                             }
 
@@ -323,6 +332,7 @@ namespace Core.Networking.Udp
 
                 // Nothing to do, just drop.
                 _connectionSlots[i] = null;
+                _disconnectedConnectionTime[connection.Uid] = DateTime.UtcNow;
 
                 Logger.LogInfo($"[{GetType().FullName}] Connection ' {connection.Uid}' disconnected due to heartbeat timeout ({heartBeatDelta.TotalMilliseconds})ms.");
 
@@ -341,11 +351,25 @@ namespace Core.Networking.Udp
             _knownEndpointTracker.Update();
             while (_knownEndpointTracker.TryDequeuesInactive(out var inactiveEndPoint))
                 _protocol.RemoveEndPointData(inactiveEndPoint);
+
+
+            _connectionUidScratchBuffer.Clear();
+            _connectionUidScratchBuffer.AddRange(_disconnectedConnectionTime.Keys);
+
+            foreach (var connectionId in _connectionUidScratchBuffer)
+            {
+                if (!_disconnectedConnectionTime.TryGetValue(connectionId, out var disconnectTime))
+                    continue;
+
+                var delta = (DateTime.UtcNow - disconnectTime).TotalMilliseconds;
+                if (delta > HEARTBEAT_TIMEOUT_MS)
+                    _disconnectedConnectionTime.Remove(connectionId);
+            }
         }
 
         private void OnFailedToProcessDgram(IPEndPoint sender)
         {
-            // NOTE: this usually indicates that client sends incorrect/corrupted messages.
+            // NOTE: this usually indicates that a client sends incorrect/corrupted messages.
             UnexpectedClientAction(sender, "Unexpected data received on the protocol level.");
         }
 
@@ -457,7 +481,7 @@ namespace Core.Networking.Udp
                 if (connection == null || connection.Uid != uid)
                     continue;
 
-                // Send disconnect message.
+                // Send a disconnect message.
                 _dataWriter.SeekZero();
                 _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Disconnect);
                 _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
