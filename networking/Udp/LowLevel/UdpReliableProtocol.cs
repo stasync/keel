@@ -266,9 +266,11 @@ namespace Core.Networking.Udp.LowLevel
             UdpUtils.SendMtu(_socket, endPoint, data: dataSegment);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsBlacklisted(IPAddress address) =>
             _ipAddressBlacklist != null && _ipAddressBlacklist.IsBlacklisted(address);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddOrUpdateAddressInBlacklist(IPAddress address, int millisecondsToAdd)
         {
             if (millisecondsToAdd < 1)
@@ -278,6 +280,7 @@ namespace Core.Networking.Udp.LowLevel
             _ipAddressBlacklist.AddOrUpdateBlacklistTime(address, millisecondsToAdd);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ClearEndpointData(IPEndPoint endPoint) =>
             _dgramStatePerEndPoint.ClearEndpointData(endPoint);
 

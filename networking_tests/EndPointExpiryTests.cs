@@ -7,7 +7,7 @@ namespace Core.Networking.Tests
     /// <summary>
     /// Per endpoint tracking state is allocated on the first datagram from any source address, before anything
     /// has authenticated. Endpoints that become connections are released explicitly by the layer above, but a
-    /// scan, a spoofed source or an abandoned handshake never gets that far - so the protocol expires its own
+    /// scan, a spoofed source, or an abandoned handshake never gets that far - so the protocol expires its own
     /// state instead of relying on a caller to do it.
     /// </summary>
     public class EndPointExpiryTests : IDisposable
