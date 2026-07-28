@@ -1,18 +1,19 @@
 ﻿using Core.Networking.Udp;
 using Core.Networking.Udp.LowLevel;
-using Core.Utils.Debug;
 using System.Net;
 
 namespace Core.Networking.Tests
 {
     /// <summary>
     /// A session can start arriving from a different endpoint - a NAT rebind, a Wi-Fi handover, a changed
-    /// public address. Heartbeats keep working either way, because the reply goes back to whatever address the
-    /// datagram arrived from, so the session looks healthy. But outgoing data keeps targeting the address
-    /// captured at connect, so the client silently stops receiving while still appearing connected.
+    /// public address. Heartbeats would keep working either way, because the reply goes back to whatever
+    /// address the datagram arrived from, so the session would look healthy. But outgoing data keeps targeting
+    /// the address captured at connect, so the client would silently stop receiving while still appearing
+    /// connected.
     ///
     /// The endpoint is deliberately not followed - doing so would let anyone knowing the connection uid,
-    /// validation uid and slot redirect a session to their own address. So the log is the only signal.
+    /// validation uid and slot redirect a session to their own address. Instead the datagram is reported
+    /// through <see cref="ReliableUdpListener.UnexpectedClientAction"/> and discarded.
     /// </summary>
     public class EndPointChangeTests : IDisposable
     {
@@ -21,26 +22,17 @@ namespace Core.Networking.Tests
 
         private readonly ReliableUdpListener _server;
         private readonly ReliableUdpClient _client = new();
-        private readonly List<string> _capturedLogs = new();
-        private readonly Action<LogLevel, string> _logHandler;
+        private readonly List<string> _unexpectedClientActions = new();
 
         public EndPointChangeTests()
         {
             _server = new ReliableUdpListener(maxConnections: 4, port: 0, protocolKey: 0);
-
-            _logHandler = (_, message) =>
-            {
-                lock (_capturedLogs)
-                    _capturedLogs.Add(message);
-            };
-
-            Logger.LogReceivedThreaded += _logHandler;
+            _server.UnexpectedClientAction += (_, action) =>
+                _unexpectedClientActions.Add(action);
         }
 
         public void Dispose()
         {
-            Logger.LogReceivedThreaded -= _logHandler;
-
             _server.Dispose();
             _client.Disconnect();
         }
@@ -54,6 +46,7 @@ namespace Core.Networking.Tests
 
             var connectionUid = _client.ConnectionUid;
             Assert.True(_server.TryGetConnectionEndPoint(connectionUid, out var endPointAtConnect));
+            Assert.Empty(_unexpectedClientActions);
 
             // Same session, new source address - the client "moved". Its original socket goes quiet, exactly
             // as it would after a rebinding.
@@ -77,8 +70,9 @@ namespace Core.Networking.Tests
                 _server.Update();
             }
 
-            // Reported once the arrival address stopped matching.
-            Assert.Contains(_capturedLogs, log => log.Contains("is now arriving from") && log.Contains($"'{connectionUid}'"));
+            // Reported once the arrival address stopped matching the pinned one.
+            Assert.Contains(_unexpectedClientActions,
+                action => action.Contains("is now arriving from") && action.Contains($"'{connectionUid}'"));
 
             // But not followed: outgoing data still targets the address captured at connect.
             Assert.True(_server.TryGetConnectionEndPoint(connectionUid, out var endPointAfterMove));
@@ -86,8 +80,9 @@ namespace Core.Networking.Tests
         }
 
         /// <summary>
-        /// The report must not fire for a session that has not moved, or it would log at the heartbeat rate
-        /// on a process wide lock.
+        /// A session that has not moved must never be reported - callers may ban an address on a single
+        /// <see cref="ReliableUdpListener.UnexpectedClientAction"/>, so a false positive here would drop a
+        /// healthy client.
         /// </summary>
         [Fact]
         public void AStableSessionIsNeverReported()
@@ -98,7 +93,7 @@ namespace Core.Networking.Tests
 
             Pump(millisecondsToRun: 800);
 
-            Assert.DoesNotContain(_capturedLogs, log => log.Contains("is now arriving from"));
+            Assert.Empty(_unexpectedClientActions);
         }
 
         private void PumpUntil(Func<bool> condition, uint millisecondsTimeout)
