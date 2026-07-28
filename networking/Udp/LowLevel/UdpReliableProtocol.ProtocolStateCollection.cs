@@ -19,25 +19,7 @@ namespace Core.Networking.Udp.LowLevel
                 {
                     internal byte Attempts;
                     internal DateTime NextResendTime;
-                    private double _currentResendDelayMs;
-
-                    internal OutgoingRetryState(DateTime sentTime)
-                    {
-                        Attempts = 0;
-                        _currentResendDelayMs = INITIAL_RESEND_DELAY_MS;
-                        NextResendTime = sentTime.AddMilliseconds(INITIAL_RESEND_DELAY_MS);
-                    }
-
-                    /// <summary>
-                    /// Records a retransmission and schedules the next one further out than the last.
-                    /// </summary>
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    internal void OnResent(DateTime resentTime)
-                    {
-                        Attempts++;
-                        _currentResendDelayMs = Math.Min(_currentResendDelayMs * RESEND_DELAY_GROWTH_FACTOR, MAX_RESEND_DELAY_MS);
-                        NextResendTime = resentTime.AddMilliseconds(_currentResendDelayMs);
-                    }
+                    internal double CurrentResendDelayMs;
                 }
 
                 private uint _currentDatagramUid;
@@ -60,7 +42,7 @@ namespace Core.Networking.Udp.LowLevel
                 internal uint ProcessOutgoingDatagram(in ArraySegment<byte> data)
                 {
                     var result = ++_currentDatagramUid;
-                    // If prefix is greater than 0, we expect a reliable message and have to keep the datagram state temporary.
+                    // If the prefix is greater than 0, we expect a reliable message and have to keep the datagram state temporary.
                     if (_prefix > 0)
                     {
                         var snapshot = new DatagramSnapshot(result, _endPoint, data, _prefix);
@@ -68,7 +50,13 @@ namespace Core.Networking.Udp.LowLevel
 
                         // The datagram has just gone out, so the first retransmission is one delay away rather
                         // than due on the very next tick.
-                        _outgoingRetryStates.TryAdd(snapshot.Uid, new OutgoingRetryState(DateTime.UtcNow));
+                        var retryState = new OutgoingRetryState
+                        {
+                            Attempts = 0,
+                            CurrentResendDelayMs = INITIAL_RESEND_DELAY_MS,
+                            NextResendTime = DateTime.UtcNow.AddMilliseconds(INITIAL_RESEND_DELAY_MS)
+                        };
+                        _outgoingRetryStates.TryAdd(snapshot.Uid, retryState);
                     }
 
                     return result;
@@ -82,8 +70,15 @@ namespace Core.Networking.Udp.LowLevel
 
                     foreach (var pendingSnapshot in _pendingOutgoingSnapshots.Values)
                     {
-                        var retryState = _outgoingRetryStates[pendingSnapshot.Uid];
+#if NET9_0_OR_GREATER
+                        // Get the retry state.
+                        ref var retryState = ref System.Runtime.InteropServices
+                            .CollectionsMarshal
+                            .GetValueRefOrNullRef(_outgoingRetryStates, pendingSnapshot.Uid);
 
+#else
+                        var retryState = _outgoingRetryStates[pendingSnapshot.Uid];
+#endif
                         if (retryState.Attempts >= MAX_RESEND_ATTEMPTS)
                         {
                             _attemptsToRemoveAfterResend.Add(pendingSnapshot.Uid);
@@ -99,8 +94,14 @@ namespace Core.Networking.Udp.LowLevel
                         // Resend dgram.
                         _resendRequired(pendingSnapshot);
 
-                        retryState.OnResent(currentTime);
+                        // Update retry state.
+                        retryState.Attempts++;
+                        retryState.CurrentResendDelayMs = Math.Min(retryState.CurrentResendDelayMs * RESEND_DELAY_GROWTH_FACTOR, MAX_RESEND_DELAY_MS);
+                        retryState.NextResendTime = currentTime.AddMilliseconds(retryState.CurrentResendDelayMs);
+
+#if !NET9_0_OR_GREATER
                         _outgoingRetryStates[pendingSnapshot.Uid] = retryState;
+#endif
                     }
 
                     foreach (var dgramUid in _attemptsToRemoveAfterResend)
