@@ -75,15 +75,15 @@ namespace Core.Networking.Udp.LowLevel
                 var deliveryMethod = (DgramDeliveryMethod)data.ProtocolPrefix;
                 if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && _lastValidUid > data.Uid)
                 {
-                    // This is more or less sanity check, for ReliableOrdered protocol only.
+                    // This is more or less a sanity check, for ReliableOrdered protocol only.
                     // NOTE: This is a serious reliability issue.
                     throw new InvalidOperationException($"[{(DgramDeliveryMethod)data.ProtocolPrefix}] Incorrect incoming datagram uid: '{data.Uid}', but expected id should be more than '{_lastValidUid}'.");
                 }
 
                 var shouldBeReceived = true;
 
-                // If message should be received in order, check previous message uid - it should be less by 1.
-                // Otherwise, add it to pending buffer.
+                // If the message should be received in order, check the previous message uid - it should be less by 1.
+                // Otherwise, add it to the pending buffer.
                 if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && _lastValidUid != data.Uid - 1)
                 {
                     _unorderedPendingData.Add(data);
@@ -130,7 +130,7 @@ namespace Core.Networking.Udp.LowLevel
                 {
                     _unorderedPendingData.RemoveAt(dataIndex);
 
-                    // Try free up memory, if capacity to length diff is getting bigger.
+                    // Try to free up memory if capacity-to-length diff is getting bigger.
                     if (_unorderedPendingData.Count == 0 || _unorderedPendingData.Capacity - _unorderedPendingData.Count >= 64)
                         _unorderedPendingData.TrimExcess();
                 }
@@ -182,7 +182,7 @@ namespace Core.Networking.Udp.LowLevel
                 if (advancedBy >= WINDOW_SIZE)
                     Array.Clear(_receivedPackets, index: 0, length: WINDOW_WORD_COUNT);
                 // Every slot between the old and the new head still holds the state of the datagram that just fell out
-                // of the window. The next datagram in sequence skips this entirely - it lands on the only slot we are
+                // of the window. The next datagram in the sequence skips this entirely - it lands on the only slot we are
                 // about to set anyway.
                 else if (advancedBy > 1)
                     ClearRange(_highestSequenceNumber + 1, advancedBy - 1);
