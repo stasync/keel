@@ -79,7 +79,12 @@ namespace Core.Networking.Udp
                 _knownEndpointsToRemove.TryDequeue(out inactiveEndPoint);
         }
 
-        public const uint HEARTBEAT_TIMEOUT_MS = 2000;
+        /// <summary>
+        /// Derived from <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/> so the two horizons stay in
+        /// step: there is no point declaring a connection dead while the layer below is still retransmitting
+        /// for it, nor retransmitting for a connection that is already gone.
+        /// </summary>
+        public const uint HEARTBEAT_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS;
 
         public event Action<uint, ConnectionRequest> Connected = delegate { };
         public event Action<uint> Disconnected = delegate { };

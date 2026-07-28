@@ -12,7 +12,12 @@ namespace Core.Networking.Tests
     public class ResendBackoffTests : IDisposable
     {
         private const int TICK_MS = 10;
-        private const int WINDOW_MS = 2000;
+
+        /// <summary>
+        /// Short of the give up horizon, so the backoff can be observed without the datagram being dropped
+        /// part way through the measurement.
+        /// </summary>
+        private const int WINDOW_MS = 1500;
 
         /// <summary>
         /// Records when each datagram actually left the socket, at the lowest level, retransmissions included.
@@ -94,6 +99,61 @@ namespace Core.Networking.Tests
             Assert.True(gaps.Count >= 3, $"Expected at least 3 retransmissions to compare, got {gaps.Count}.");
             Assert.True(gaps[^1] > gaps[0] * 1.5,
                 $"Retry delay did not grow: first gap {gaps[0]:F0}ms, last gap {gaps[^1]:F0}ms.");
+
+            // Still inside the give up window, so nothing has been reported yet.
+            Assert.Equal(0, _sender.ReliabilityFailureCount);
+        }
+
+        /// <summary>
+        /// Retrying is bounded by elapsed time rather than by an attempt count, so the give up point does not
+        /// move when the resend delays are retuned.
+        /// </summary>
+        [Fact]
+        public void UnackedDatagramIsGivenUpOnOnceTheResendDurationElapses()
+        {
+            var writer = new NetWriter();
+            writer.SeekZero();
+            writer.WriteString("payload that will never be acknowledged");
+
+            _sender.SendTo(new IPEndPoint(IPAddress.Loopback, _blackHolePort), writer.AsArraySegment(),
+                UdpFullProtocol.DgramDeliveryMethod.Reliable);
+
+            var sentTime = DateTime.UtcNow;
+            var gaveUpAfterMs = -1d;
+
+            while ((DateTime.UtcNow - sentTime).TotalMilliseconds < UdpReliableProtocol.MAX_RESEND_DURATION_MS * 2)
+            {
+                Thread.Sleep(TICK_MS);
+
+                _sender.Poll();
+                _blackHole.Poll();
+
+                if (_sender.ReliabilityFailureCount <= 0)
+                    continue;
+
+                gaveUpAfterMs = (DateTime.UtcNow - sentTime).TotalMilliseconds;
+                break;
+            }
+
+            var sendsAtGiveUp = _senderSends.SendTimes.Count;
+            _output.WriteLine($"gave up after   : {gaveUpAfterMs:F0}ms");
+            _output.WriteLine($"datagrams sent  : {sendsAtGiveUp}");
+
+            Assert.True(gaveUpAfterMs > 0, "The datagram was never given up on.");
+
+            // Bounded by the resend duration, with a tick of slack either side.
+            Assert.InRange(gaveUpAfterMs, UdpReliableProtocol.MAX_RESEND_DURATION_MS - TICK_MS,
+                UdpReliableProtocol.MAX_RESEND_DURATION_MS + TICK_MS * 10);
+
+            // And it stops retransmitting once it has given up.
+            for (var i = 0; i < 20; i++)
+            {
+                Thread.Sleep(TICK_MS);
+                _sender.Poll();
+            }
+
+            Assert.Equal(sendsAtGiveUp, _senderSends.SendTimes.Count);
+            Assert.Equal(1, _sender.ReliabilityFailureCount);
         }
     }
 }

@@ -17,7 +17,7 @@ namespace Core.Networking.Udp.LowLevel
                 /// </summary>
                 private struct OutgoingRetryState
                 {
-                    internal byte Attempts;
+                    internal DateTime GiveUpTime;
                     internal DateTime NextResendTime;
                     internal double CurrentResendDelayMs;
                 }
@@ -50,11 +50,12 @@ namespace Core.Networking.Udp.LowLevel
 
                         // The datagram has just gone out, so the first retransmission is one delay away rather
                         // than due on the very next tick.
+                        var sentTime = DateTime.UtcNow;
                         var retryState = new OutgoingRetryState
                         {
-                            Attempts = 0,
                             CurrentResendDelayMs = INITIAL_RESEND_DELAY_MS,
-                            NextResendTime = DateTime.UtcNow.AddMilliseconds(INITIAL_RESEND_DELAY_MS)
+                            NextResendTime = sentTime.AddMilliseconds(INITIAL_RESEND_DELAY_MS),
+                            GiveUpTime = sentTime.AddMilliseconds(MAX_RESEND_DURATION_MS)
                         };
                         _outgoingRetryStates.TryAdd(snapshot.Uid, retryState);
                     }
@@ -79,7 +80,8 @@ namespace Core.Networking.Udp.LowLevel
 #else
                         var retryState = _outgoingRetryStates[pendingSnapshot.Uid];
 #endif
-                        if (retryState.Attempts >= MAX_RESEND_ATTEMPTS)
+                        // Retried for long enough - give up and report it.
+                        if (currentTime >= retryState.GiveUpTime)
                         {
                             _attemptsToRemoveAfterResend.Add(pendingSnapshot.Uid);
                             _reliabilityFailure(pendingSnapshot.EndPoint);
@@ -95,7 +97,6 @@ namespace Core.Networking.Udp.LowLevel
                         _resendRequired(pendingSnapshot);
 
                         // Update retry state.
-                        retryState.Attempts++;
                         retryState.CurrentResendDelayMs = Math.Min(retryState.CurrentResendDelayMs * RESEND_DELAY_GROWTH_FACTOR, MAX_RESEND_DELAY_MS);
                         retryState.NextResendTime = currentTime.AddMilliseconds(retryState.CurrentResendDelayMs);
 

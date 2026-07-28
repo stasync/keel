@@ -15,7 +15,18 @@ namespace Core.Networking.Udp.LowLevel
     /// </summary>
     public sealed partial class UdpReliableProtocol : IDisposable
     {
-        private const int MAX_RESEND_ATTEMPTS = 64;
+        /// <summary>
+        /// How long an unacknowledged datagram keeps being retransmitted before it is given up on and reported
+        /// as a reliability failure.
+        ///
+        /// Expressed as a duration rather than an attempt count on purpose: with the growing resend delay
+        /// below, a fixed number of attempts would mean a give up window that silently moves whenever those
+        /// delays are retuned.
+        ///
+        /// This is also the source for <see cref="ReliableUdpListener.HEARTBEAT_TIMEOUT_MS"/> - there is no
+        /// point retransmitting for longer than the connection above would survive without a heartbeat.
+        /// </summary>
+        public const uint MAX_RESEND_DURATION_MS = 2000;
 
         /// <summary>
         /// How long to wait after the initial sending before the first retransmission.
