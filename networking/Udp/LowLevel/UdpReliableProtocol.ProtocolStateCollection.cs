@@ -12,13 +12,41 @@ namespace Core.Networking.Udp.LowLevel
         {
             private sealed class ProtocolState
             {
+                /// <summary>
+                /// Retransmission bookkeeping for a single pending datagram.
+                /// </summary>
+                private struct OutgoingRetryState
+                {
+                    internal byte Attempts;
+                    internal DateTime NextResendTime;
+                    private double _currentResendDelayMs;
+
+                    internal OutgoingRetryState(DateTime sentTime)
+                    {
+                        Attempts = 0;
+                        _currentResendDelayMs = INITIAL_RESEND_DELAY_MS;
+                        NextResendTime = sentTime.AddMilliseconds(INITIAL_RESEND_DELAY_MS);
+                    }
+
+                    /// <summary>
+                    /// Records a retransmission and schedules the next one further out than the last.
+                    /// </summary>
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                    internal void OnResent(DateTime resentTime)
+                    {
+                        Attempts++;
+                        _currentResendDelayMs = Math.Min(_currentResendDelayMs * RESEND_DELAY_GROWTH_FACTOR, MAX_RESEND_DELAY_MS);
+                        NextResendTime = resentTime.AddMilliseconds(_currentResendDelayMs);
+                    }
+                }
+
                 private uint _currentDatagramUid;
                 private readonly byte _prefix;
                 private readonly IPEndPoint _endPoint;
                 private readonly Action<DatagramSnapshot> _resendRequired;
                 private readonly Action<IPEndPoint> _reliabilityFailure;
                 private readonly Dictionary<uint, DatagramSnapshot> _pendingOutgoingSnapshots = new();
-                private readonly Dictionary<uint, byte> _outgoingRetryAttempts = new();
+                private readonly Dictionary<uint, OutgoingRetryState> _outgoingRetryStates = new();
                 private readonly List<uint> _attemptsToRemoveAfterResend = new();
 
                 internal ProtocolState(byte protocolPrefix, IPEndPoint endPoint, Action<DatagramSnapshot> resendRequired, Action<IPEndPoint> reliabilityFailure)
@@ -32,12 +60,15 @@ namespace Core.Networking.Udp.LowLevel
                 internal uint ProcessOutgoingDatagram(in ArraySegment<byte> data)
                 {
                     var result = ++_currentDatagramUid;
-                    // If prefix is greater than 0, we expect reliable message and have to keep datagram state temporary.
+                    // If prefix is greater than 0, we expect a reliable message and have to keep the datagram state temporary.
                     if (_prefix > 0)
                     {
                         var snapshot = new DatagramSnapshot(result, _endPoint, data, _prefix);
                         _pendingOutgoingSnapshots.TryAdd(snapshot.Uid, snapshot);
-                        _outgoingRetryAttempts.TryAdd(snapshot.Uid, 0);
+
+                        // The datagram has just gone out, so the first retransmission is one delay away rather
+                        // than due on the very next tick.
+                        _outgoingRetryStates.TryAdd(snapshot.Uid, new OutgoingRetryState(DateTime.UtcNow));
                     }
 
                     return result;
@@ -47,18 +78,29 @@ namespace Core.Networking.Udp.LowLevel
                 {
                     _attemptsToRemoveAfterResend.Clear();
 
+                    var currentTime = DateTime.UtcNow;
+
                     foreach (var pendingSnapshot in _pendingOutgoingSnapshots.Values)
                     {
-                        if (_outgoingRetryAttempts[pendingSnapshot.Uid] >= MAX_RESEND_ATTEMPTS)
+                        var retryState = _outgoingRetryStates[pendingSnapshot.Uid];
+
+                        if (retryState.Attempts >= MAX_RESEND_ATTEMPTS)
                         {
                             _attemptsToRemoveAfterResend.Add(pendingSnapshot.Uid);
                             _reliabilityFailure(pendingSnapshot.EndPoint);
                             continue;
                         }
 
+                        // Not due yet. Without this every unacked datagram would go out again on every single
+                        // tick, so the cost of one lost datagram would scale with the caller's update rate.
+                        if (currentTime < retryState.NextResendTime)
+                            continue;
+
                         // Resend dgram.
                         _resendRequired(pendingSnapshot);
-                        _outgoingRetryAttempts[pendingSnapshot.Uid]++;
+
+                        retryState.OnResent(currentTime);
+                        _outgoingRetryStates[pendingSnapshot.Uid] = retryState;
                     }
 
                     foreach (var dgramUid in _attemptsToRemoveAfterResend)
@@ -70,14 +112,14 @@ namespace Core.Networking.Udp.LowLevel
                     if (_pendingOutgoingSnapshots.Remove(uid, out var snapshot))
                         snapshot.Dispose();
 
-                    _outgoingRetryAttempts.Remove(uid);
+                    _outgoingRetryStates.Remove(uid);
 
 #if NET9_0_OR_GREATER
                     if (_pendingOutgoingSnapshots.Count == 0 || _pendingOutgoingSnapshots.Capacity - _pendingOutgoingSnapshots.Count > 64)
                         _pendingOutgoingSnapshots.TrimExcess();
 
-                    if (_outgoingRetryAttempts.Count == 0 || _outgoingRetryAttempts.Capacity - _outgoingRetryAttempts.Count > 64)
-                        _outgoingRetryAttempts.TrimExcess();
+                    if (_outgoingRetryStates.Count == 0 || _outgoingRetryStates.Capacity - _outgoingRetryStates.Count > 64)
+                        _outgoingRetryStates.TrimExcess();
 #endif
                 }
 
@@ -87,11 +129,11 @@ namespace Core.Networking.Udp.LowLevel
                         snapshot.Dispose();
 
                     _pendingOutgoingSnapshots.Clear();
-                    _outgoingRetryAttempts.Clear();
+                    _outgoingRetryStates.Clear();
                     _attemptsToRemoveAfterResend.Clear();
 
                     _pendingOutgoingSnapshots.TrimExcess();
-                    _outgoingRetryAttempts.TrimExcess();
+                    _outgoingRetryStates.TrimExcess();
                     _attemptsToRemoveAfterResend.TrimExcess();
                 }
             }

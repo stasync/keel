@@ -17,6 +17,23 @@ namespace Core.Networking.Udp.LowLevel
     {
         private const int MAX_RESEND_ATTEMPTS = 64;
 
+        /// <summary>
+        /// How long to wait after the initial sending before the first retransmission.
+        /// </summary>
+        private const double INITIAL_RESEND_DELAY_MS = 100;
+
+        /// <summary>
+        /// The delay grows by this factor with every attempt, so a peer that is not answering is probed less
+        /// and less often instead of on every single update tick.
+        /// </summary>
+        private const double RESEND_DELAY_GROWTH_FACTOR = 2;
+
+        /// <summary>
+        /// Upper bound on the grown delay, so a long-lived datagram keeps retrying at a steady rate rather
+        /// than drifting towards never.
+        /// </summary>
+        private const double MAX_RESEND_DELAY_MS = 1000;
+
         public event Action<IPEndPoint> FailedToProcessDgram = delegate { };
 
         public int ReliabilityFailureCount { get; private set; }
@@ -97,7 +114,7 @@ namespace Core.Networking.Udp.LowLevel
                 EndPoint senderEndPoint = new IPEndPoint(IPAddress.Any, port: 0);
                 var received = UdpUtils.ReceiveMtuFrom(_socket, _incomingBuffer, ref senderEndPoint);
 
-                // Nothing has been received, or socket exception was thrown.
+                // Nothing has been received, or a socket exception was thrown.
                 // NOTE: We have to continue the loop here, not brake.
                 if (received == 0)
                     continue;
@@ -114,7 +131,7 @@ namespace Core.Networking.Udp.LowLevel
                 if (_incomingPacketSimulationPipeline != null)
                 {
                     // Slow track - though simulators.
-                    // We have to copy the data here, as simulator may aggregate packages and 'receivedDataSegment' uses the shared incoming buffer.
+                    // We have to copy the data here, as the simulator may aggregate packages and 'receivedDataSegment' uses the shared incoming buffer.
                     var dataCopy = new byte[receivedDataSegment.Count];
                     Buffer.BlockCopy(src: receivedDataSegment.Array!, srcOffset: receivedDataSegment.Offset, dst: dataCopy, dstOffset: 0, count: receivedDataSegment.Count);
 
@@ -192,7 +209,7 @@ namespace Core.Networking.Udp.LowLevel
                             return;
                         }
 
-                        // Create payload instance. We have to copy the data here as its unknown when the data will be consumed (form the outgoing queue by consumer).
+                        // Create a payload instance. We have to copy the data here as its unknown when the data will be consumed (form the outgoing queue by consumer).
                         var payload = new byte[payloadSize];
                         Buffer.BlockCopy(src: data.Array!, srcOffset: data.Offset + protocolOffset, dst: payload, dstOffset: 0, count: payload.Length);
 
