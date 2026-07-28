@@ -21,7 +21,7 @@ namespace Core.Networking.Udp.LowLevel
         ///
         /// Expressed as a duration rather than an attempt count on purpose: with the growing resend delay
         /// below, a fixed number of attempts would mean a give up window that silently moves whenever those
-        /// delays are retuned.
+        /// delays are returned.
         ///
         /// This is also the source for <see cref="ReliableUdpListener.HEARTBEAT_TIMEOUT_MS"/> - there is no
         /// point retransmitting for longer than the connection above would survive without a heartbeat.
