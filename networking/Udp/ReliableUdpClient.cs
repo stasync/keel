@@ -165,6 +165,23 @@ namespace Core.Networking.Udp
 
         private void ProcessData(in IncomingDataSnapshot incomingDataSnapshot)
         {
+            // As we process incoming data, we should always be ready that it might in some incorrect format.
+            // NOTE: a malformed datagram must never escape Update(), otherwise the client stops updating
+            // entirely: it stops heartbeating, never runs its own timeout check, logs nothing, and the
+            // server drops it once HEARTBEAT_TIMEOUT_MS elapses.
+            try
+            {
+                ProcessServerMessage(in incomingDataSnapshot);
+            }
+            catch (Exception e)
+            {
+                // Discard the offending datagram and keep the update loop alive.
+                Core.Utils.Debug.Logger.LogError($"[{GetType().FullName}] MALFORMED DATAGRAM from '{incomingDataSnapshot.EndPoint}' discarded: {e.Message}");
+            }
+        }
+
+        private void ProcessServerMessage(in IncomingDataSnapshot incomingDataSnapshot)
+        {
             _dataReader.Replace(incomingDataSnapshot.Buffer);
 
             var messageCode = (ServerMessageCodes)_dataReader.ReadByte();
@@ -210,7 +227,7 @@ namespace Core.Networking.Udp
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException();
+                    throw new ArgumentOutOfRangeException(nameof(messageCode), messageCode, "Unknown server message code");
             }
         }
 
