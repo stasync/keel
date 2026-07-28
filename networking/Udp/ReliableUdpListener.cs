@@ -54,35 +54,6 @@ namespace Core.Networking.Udp
             }
         }
 
-        private sealed class KnownEndpointTracker
-        {
-            private readonly Dictionary<IPEndPoint, DateTime> _knownEndpointStates = new();
-            private readonly Queue<IPEndPoint> _knownEndpointsToRemove = new();
-            private readonly List<IPEndPoint> _knownEndpointStatesIterator = new();
-
-            internal void OnDataReceived(IPEndPoint endpoint) =>
-                _knownEndpointStates[endpoint] = DateTime.UtcNow;
-
-            internal void Update()
-            {
-                _knownEndpointStatesIterator.Clear();
-                _knownEndpointStatesIterator.AddRange(_knownEndpointStates.Keys);
-
-                foreach (var knownEndPoint in _knownEndpointStatesIterator)
-                {
-                    var lastUpdateTime = _knownEndpointStates[knownEndPoint];
-                    if ((DateTime.UtcNow - lastUpdateTime).TotalMilliseconds < HEARTBEAT_TIMEOUT_MS * 2)
-                        continue;
-
-                    _knownEndpointStates.Remove(knownEndPoint);
-                    _knownEndpointsToRemove.Enqueue(knownEndPoint);
-                }
-            }
-
-            internal bool TryDequeuesInactive(out IPEndPoint inactiveEndPoint) =>
-                _knownEndpointsToRemove.TryDequeue(out inactiveEndPoint);
-        }
-
         /// <summary>
         /// Derived from <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/> so the two horizons stay in
         /// the step: there is no point declaring a connection dead while the layer below is still retransmitting
@@ -103,12 +74,11 @@ namespace Core.Networking.Udp
         private readonly UdpFullProtocol _protocol;
         private readonly Queue<ConnectionRequest> _connectionRequests = new();
         private readonly Connection[] _connectionSlots;
-        private readonly KnownEndpointTracker _knownEndpointTracker = new();
         private readonly NetWriter _dataWriter = new();
         private readonly NetReader _dataReader = new();
         private readonly Dictionary<uint, DateTime> _recentDisconnectsLookup = new();
 
-        private DateTime _nextKnownEndpointTrackerUpdateTime;
+        private DateTime _nextRecentDisconnectsPurgeTime;
 
         public ReliableUdpListener(int maxConnections, int port, ushort protocolKey)
         {
@@ -204,7 +174,7 @@ namespace Core.Networking.Udp
             }
 
             UpdateConnectionHeartbeats();
-            UpdateKnownEndpointStates();
+            PurgeRecentDisconnects();
         }
 
         public bool HasConnection(uint uid)
@@ -242,8 +212,6 @@ namespace Core.Networking.Udp
             // As we process incoming data, we should always be ready that it might in some incorrect format.
             try
             {
-                _knownEndpointTracker.OnDataReceived(incomingDataSnapshot.EndPoint);
-
                 _dataReader.Replace(incomingDataSnapshot.Buffer);
                 var messageCode = (ClientMessageCodes)_dataReader.ReadByte();
 
@@ -365,16 +333,18 @@ namespace Core.Networking.Udp
             }
         }
 
-        private void UpdateKnownEndpointStates()
+        /// <summary>
+        /// Drops the recently disconnected uids that are old enough that a client cannot still be sending against them.
+        ///
+        /// NOTE: releasing per endpoint protocol state is not done here - <see cref="UdpFullProtocol"/> expires
+        /// its own tracking, since it is what allocates it.
+        /// </summary>
+        private void PurgeRecentDisconnects()
         {
-            if (DateTime.UtcNow < _nextKnownEndpointTrackerUpdateTime)
+            if (DateTime.UtcNow < _nextRecentDisconnectsPurgeTime)
                 return;
 
-            _nextKnownEndpointTrackerUpdateTime = DateTime.UtcNow.AddMilliseconds(HEARTBEAT_TIMEOUT_MS);
-
-            _knownEndpointTracker.Update();
-            while (_knownEndpointTracker.TryDequeuesInactive(out var inactiveEndPoint))
-                _protocol.RemoveEndPointData(inactiveEndPoint);
+            _nextRecentDisconnectsPurgeTime = DateTime.UtcNow.AddMilliseconds(HEARTBEAT_TIMEOUT_MS);
 
             foreach (var connectionId in new List<uint>(_recentDisconnectsLookup.Keys))
             {

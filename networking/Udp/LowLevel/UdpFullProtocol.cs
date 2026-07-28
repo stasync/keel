@@ -22,14 +22,43 @@ namespace Core.Networking.Udp.LowLevel
 
         private sealed class EndPointDataCollection
         {
+            internal int Count => _value.Count;
+
             private readonly Dictionary<IPEndPoint, EndPointDataByProtocolCollection> _value = new();
+            private readonly List<IPEndPoint> _inactiveEndPointToRemove = new();
 
             internal EndPointData Get(in IncomingDataSnapshot incomingData)
             {
                 if (!_value.TryGetValue(incomingData.EndPoint, out var endPointData))
                     _value.Add(incomingData.EndPoint, endPointData = new EndPointDataByProtocolCollection());
 
+                // Any datagram from this endpoint keeps its tracking state alive.
+                endPointData.LastActivityTime = DateTime.UtcNow;
+
                 return endPointData.Get((DgramDeliveryMethod)incomingData.ProtocolPrefix);
+            }
+
+            /// <summary>
+            /// Collects the endpoints that have been silent for longer than the timeout and drops their
+            /// tracking state. State is allocated on the first datagram from any source address, so without
+            /// this a peer that never becomes a connection would hold it forever.
+            /// </summary>
+            internal IReadOnlyList<IPEndPoint> RemoveInactive(DateTime currentTime, double inactivityTimeoutMs)
+            {
+                // Collected first, then removed.
+                _inactiveEndPointToRemove.Clear();
+
+                foreach (var (endpoint, protocolData) in _value)
+                {
+                    var lifeSpan = currentTime - protocolData.LastActivityTime;
+                    if (lifeSpan.TotalMilliseconds > inactivityTimeoutMs)
+                        _inactiveEndPointToRemove.Add(endpoint);
+                }
+
+                foreach (var inactiveEndPoint in _inactiveEndPointToRemove)
+                    Remove(inactiveEndPoint);
+
+                return _inactiveEndPointToRemove;
             }
 
             internal void Remove(IPEndPoint endPoint)
@@ -41,12 +70,20 @@ namespace Core.Networking.Udp.LowLevel
 #endif
             }
 
-            internal void Clear() =>
+            internal void Clear()
+            {
                 _value.Clear();
+                _inactiveEndPointToRemove.Clear();
+            }
         }
 
         private sealed class EndPointDataByProtocolCollection
         {
+            /// <summary>
+            /// When a datagram was last seen from this endpoint, used to expire the state.
+            /// </summary>
+            internal DateTime LastActivityTime { get; set; }
+
             private readonly EndPointData[] _value;
 
             internal EndPointDataByProtocolCollection()
@@ -130,7 +167,7 @@ namespace Core.Networking.Udp.LowLevel
                 {
                     _unorderedPendingData.RemoveAt(dataIndex);
 
-                    // Try to free up memory if capacity-to-length diff is getting bigger.
+                    // Try to free up memory if the capacity-to-length diff is getting bigger.
                     if (_unorderedPendingData.Count == 0 || _unorderedPendingData.Capacity - _unorderedPendingData.Count >= 64)
                         _unorderedPendingData.TrimExcess();
                 }
@@ -207,9 +244,7 @@ namespace Core.Networking.Udp.LowLevel
                     var bitsInThisWord = Math.Min((int)count, BITS_PER_WORD - bit);
 
                     // A full word cannot be expressed as a shifted mask - '1UL << 64' is not a zero shift here.
-                    var mask = bitsInThisWord == BITS_PER_WORD
-                        ? ulong.MaxValue
-                        : ((1UL << bitsInThisWord) - 1) << bit;
+                    var mask = bitsInThisWord == BITS_PER_WORD ? ulong.MaxValue : ((1UL << bitsInThisWord) - 1) << bit;
 
                     _receivedPackets[word] &= ~mask;
 
@@ -234,14 +269,36 @@ namespace Core.Networking.Udp.LowLevel
             }
         }
 
+        /// <summary>
+        /// How long an endpoint may stay silent before its tracking state is released. Twice
+        /// <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/>, so the state always outlives any
+        /// retransmission still in flight for that endpoint.
+        /// </summary>
+        private const double ENDPOINT_INACTIVITY_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS * 2;
+
+        /// <summary>
+        /// How often the inactivity sweep runs. Walking every tracked endpoint on every poll would be wasted
+        /// work, so entries live somewhere between one and two intervals past the timeout.
+        /// </summary>
+        private const double ENDPOINT_SWEEP_INTERVAL_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS;
+
         public int ReliabilityFailureCount =>
             _baseProtocol.ReliabilityFailureCount;
+
+        /// <summary>
+        /// How many endpoints currently hold tracking state. State is allocated on the first datagram from any
+        /// source address, so this grows with unsolicited traffic and not just with real connections.
+        /// </summary>
+        public int TrackedEndPointCount =>
+            _trackedEndPoints.Count;
 
         public event Action<IPEndPoint> FailedToProcessDgram = delegate { };
 
         private readonly Queue<IncomingDataSnapshot> _incomingPayloadQueue = new();
         private readonly EndPointDataCollection _trackedEndPoints = new();
         private readonly UdpReliableProtocol _baseProtocol;
+
+        private DateTime _nextEndPointSweepTime;
 
         public UdpFullProtocol(int port, ushort protocolKey)
         {
@@ -261,6 +318,28 @@ namespace Core.Networking.Udp.LowLevel
                 var endPointData = _trackedEndPoints.Get(incomingData);
                 endPointData.TryProcess(incomingData, _incomingPayloadQueue);
             }
+
+            TryRemoveInactiveEndPoints();
+        }
+
+        /// <summary>
+        /// Releases tracking state for endpoints that have gone quiet.
+        ///
+        /// Endpoints that become connections are cleaned up explicitly by the caller, but anything that only
+        /// ever sends a datagram or two - a scan, a spoofed source, an abandoned handshake - is only ever
+        /// released here.
+        /// </summary>
+        private void TryRemoveInactiveEndPoints()
+        {
+            var currentTime = DateTime.UtcNow;
+            if (currentTime < _nextEndPointSweepTime)
+                return;
+
+            _nextEndPointSweepTime = currentTime.AddMilliseconds(ENDPOINT_SWEEP_INTERVAL_MS);
+
+            var inactiveEndPoints = _trackedEndPoints.RemoveInactive(currentTime, ENDPOINT_INACTIVITY_TIMEOUT_MS);
+            foreach (var inactiveEndPoint in inactiveEndPoints)
+                _baseProtocol.ClearEndpointData(inactiveEndPoint);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
