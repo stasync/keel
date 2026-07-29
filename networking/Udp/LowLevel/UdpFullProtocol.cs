@@ -27,6 +27,9 @@ namespace Core.Networking.Udp.LowLevel
             private readonly Dictionary<IPEndPoint, EndPointDataByProtocolCollection> _value = new();
             private readonly List<IPEndPoint> _inactiveEndPointToRemove = new();
 
+            /// <summary>
+            /// Returns the per protocol state for the sender.
+            /// </summary>
             internal EndPointData Get(in IncomingDataSnapshot incomingData)
             {
                 if (!_value.TryGetValue(incomingData.EndPoint, out var endPointData))
@@ -92,6 +95,7 @@ namespace Core.Networking.Udp.LowLevel
                 _value = new EndPointData[enumValueCount];
             }
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             internal EndPointData Get(DgramDeliveryMethod protocol) =>
                 _value[(int)protocol] ?? (_value[(int)protocol] = new EndPointData());
         }
@@ -99,6 +103,7 @@ namespace Core.Networking.Udp.LowLevel
         private sealed class EndPointData
         {
             private uint _lastValidUid;
+            private bool _hasOrderedBaseline;
 
             private readonly DuplicateTracker _receivedDatagrams = new();
             private readonly List<IncomingDataSnapshot> _unorderedPendingData = new();
@@ -110,6 +115,25 @@ namespace Core.Networking.Udp.LowLevel
                     return;
 
                 var deliveryMethod = (DgramDeliveryMethod)data.ProtocolPrefix;
+
+                // Anchor the ordered stream to the first uid seen instead of expecting it to start from 1.
+                // State expires on inactivity while the sender keeps counting, so a peer that goes quiet and
+                // comes back would stall forever waiting for uids it has already sent.
+                //
+                // Say the sender is at 41 and the state has just expired, so the cursor is back to 0:
+                //   42 arrives - 0 + 1 is not 42, so it goes to the pending buffer,
+                //   43 arrives - still waiting for 1, pending,
+                //   44 arrives - pending, and so on.
+                // 1 to 41 have already been delivered and will never be sent again, so nothing in the buffer
+                // ever becomes deliverable. Anchoring to 41 instead delivers 42, then 43, 44 as usual.
+                //
+                // NOTE: uids start from 1 - a zero would underflow the anchor, so the check below rejects it.
+                if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && !_hasOrderedBaseline && data.Uid > 0)
+                {
+                    _hasOrderedBaseline = true;
+                    _lastValidUid = data.Uid - 1;
+                }
+
                 if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && _lastValidUid > data.Uid)
                 {
                     // This is more or less a sanity check, for ReliableOrdered protocol only.
