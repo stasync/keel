@@ -15,8 +15,8 @@ namespace Core.Networking.Tests
         private const int TICK_MS = 10;
 
         /// <summary>
-        /// Inactivity timeout is twice MAX_RESEND_DURATION_MS and the sweep runs on that interval, so expiry
-        /// lands within one interval past the timeout.
+        /// Both the inactivity timeout and the sweep interval are MAX_RESEND_DURATION_MS, so expiry lands
+        /// within one interval past the timeout - twice that leaves room for a slow tick.
         /// </summary>
         private const int EXPIRY_BUDGET_MS = (int)UdpReliableProtocol.MAX_RESEND_DURATION_MS * 4;
 

@@ -103,7 +103,6 @@ namespace Core.Networking.Udp.LowLevel
         private sealed class EndPointData
         {
             private uint _lastValidUid;
-            private bool _hasOrderedBaseline;
 
             private readonly DuplicateTracker _receivedDatagrams = new();
             private readonly List<IncomingDataSnapshot> _unorderedPendingData = new();
@@ -115,25 +114,6 @@ namespace Core.Networking.Udp.LowLevel
                     return;
 
                 var deliveryMethod = (DgramDeliveryMethod)data.ProtocolPrefix;
-
-                // Anchor the ordered stream to the first uid seen instead of expecting it to start from 1.
-                // State expires on inactivity while the sender keeps counting, so a peer that goes quiet and
-                // comes back would stall forever waiting for uids it has already sent.
-                //
-                // Say the sender is at 41 and the state has just expired, so the cursor is back to 0:
-                //   42 arrives - 0 + 1 is not 42, so it goes to the pending buffer,
-                //   43 arrives - still waiting for 1, pending,
-                //   44 arrives - pending, and so on.
-                // 1 to 41 have already been delivered and will never be sent again, so nothing in the buffer
-                // ever becomes deliverable. Anchoring to 41 instead delivers 42, then 43, 44 as usual.
-                //
-                // NOTE: uids start from 1 - a zero would underflow the anchor, so the check below rejects it.
-                if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && !_hasOrderedBaseline && data.Uid > 0)
-                {
-                    _hasOrderedBaseline = true;
-                    _lastValidUid = data.Uid - 1;
-                }
-
                 if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && _lastValidUid > data.Uid)
                 {
                     // This is more or less a sanity check, for ReliableOrdered protocol only.
@@ -294,11 +274,10 @@ namespace Core.Networking.Udp.LowLevel
         }
 
         /// <summary>
-        /// How long an endpoint may stay silent before its tracking state is released. Twice
-        /// <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/>, so the state always outlives any
-        /// retransmission still in flight for that endpoint.
+        /// How long an endpoint may stay silent before its tracking state is released. An endpoint that has
+        /// sent nothing for this long is treated as gone, and one that starts sending again is treated as new.
         /// </summary>
-        private const double ENDPOINT_INACTIVITY_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS * 2;
+        private const double ENDPOINT_INACTIVITY_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS * 1.2;
 
         /// <summary>
         /// How often the inactivity sweep runs. Walking every tracked endpoint on every poll would be wasted
