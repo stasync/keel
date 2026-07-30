@@ -71,7 +71,7 @@ namespace Core.Networking.Udp.LowLevel
 
             _protocolKey = protocolKey;
 
-            // Determining protocol header size by just writing the reader. Parameters doesn't matter here.
+            // Determining protocol header size by just writing the reader. Parameters don't matter here.
             // The value is used for validation on the higher abstraction level.
             _protocolHeaderSize = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, datagramType: default, protocolKey: 0, protocolPrefix: 0, dgramUid: 0);
         }
@@ -151,7 +151,7 @@ namespace Core.Networking.Udp.LowLevel
                 }
                 else
                 {
-                    // Fast track - packet allowed to be processed as three are no simulators declared.
+                    // Fast track - packet allowed to be processed as there are no simulators declared.
                     ProcessIncomingData(senderIpEndpoint, receivedDataSegment);
                 }
             }
