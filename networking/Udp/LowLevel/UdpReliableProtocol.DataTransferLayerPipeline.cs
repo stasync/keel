@@ -8,7 +8,7 @@ namespace Core.Networking.Udp.LowLevel
     public sealed partial class UdpReliableProtocol
     {
         /// <summary>
-        /// Abstract class to implement custom layer to process incoming/outgoing data.
+        /// Abstract class to implement a custom layer to process incoming/outgoing data.
         /// </summary>
         public abstract class DataTransferLayer
         {
@@ -41,8 +41,8 @@ namespace Core.Networking.Udp.LowLevel
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             internal void ProcessIncomingData(IPEndPoint senderEndPoint, ref ArraySegment<byte> data)
             {
-                // Upon receive, we should go though layers reverse, just to keep a consistency between operations.
-                // For example - encryption layer usually the last layer that process OUTGOING messages, meaning that it should be the 1st layer that process INCOMING once.
+                // Upon received, we should go though layers reverse, just to keep a consistency between operations.
+                // For example - encryption layer is usually the last layer that processes OUTGOING messages, meaning that it should be the 1st layer that process INCOMING once.
                 for (var index = _layers.Count - 1; index >= 0; index--)
                 {
                     _layers[index].ProcessIncomingData(senderEndPoint, ref data);
