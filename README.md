@@ -12,7 +12,9 @@ The libraries target .NET Standard 2.1 and .NET 10, so they run on any runtime t
 
 ## Getting started
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) to build.
+The quickest way to get the libraries is to download them from [Releases](https://github.com/stasync/keel/releases). Every release has two zips, one for .NET 10 and one for .NET Standard 2.1. Each contains `utils.dll`, `networking.dll` and `dependency_injection.dll`. Reference the DLLs you need from your project.
+
+To build from source instead, you need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 git clone git@github.com:stasync/keel.git
@@ -30,7 +32,7 @@ artifacts/delivery/
 
 To use the libraries, reference the DLLs from your project, or add this repository as a git submodule and reference the `.csproj` files directly.
 
-You can also skip building. Every push to `main` is built and tested on GitHub, and the resulting DLLs can be downloaded from the run's page under [Actions](https://github.com/stasync/keel/actions/workflows/build.yml).
+Every push to `main` is also built and tested on GitHub. If you need a change that hasn't been released yet, download the DLLs from that run's page under [Actions](https://github.com/stasync/keel/actions/workflows/build.yml).
 
 ## Networking
 
@@ -445,3 +447,7 @@ dotnet test dependency_injection_tests
 ```
 
 `build.sh` runs both suites as part of the full build.
+
+## License
+
+Keel is released under the [MIT License](LICENSE). You can use it in any project, commercial or not, as long as you keep the copyright notice.

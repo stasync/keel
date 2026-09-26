@@ -53,7 +53,7 @@ stage_package() {
         for dll in "$framework_dir"*.dll; do
             if [ -f "$dll" ]; then cp "$dll" "$OUT_DIR/$framework/"; fi
         done
-        cp README.md "$OUT_DIR/$framework/"
+        cp README.md LICENSE "$OUT_DIR/$framework/"
     done
 
     echo "Output:"
