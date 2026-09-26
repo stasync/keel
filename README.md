@@ -1,464 +1,443 @@
-# Core
+# Keel
 
-A collection of foundational C# libraries: a utility belt, a UDP networking stack, and an IoC dependency injection container.
+Keel is a small set of C# libraries that serve as a base layer for other projects. It has three parts:
 
----
+- **Networking** is a UDP client and server that can deliver messages reliably and in order. Use it where TCP is too slow or too rigid, such as real-time games and simulations.
+- **Dependency Injection** is a lightweight container for wiring services together, with an event system built in.
+- **Utils** covers the everyday pieces: logging, background worker threads, command-line settings, encryption, and a few reflection helpers.
 
-## Project Structure
+The libraries target .NET Standard 2.1 and .NET 10, so they run on any runtime that supports either. Networking and Dependency Injection both depend on Utils, but not on each other, so you can use just the one you need.
 
-```
-core/
-├── utils/                      # Utilities (logging, threading, reflection, security, math)
-├── utils_tests/
-├── networking/                 # High-performance UDP networking stack
-├── networking_tests/
-├── dependency_injection/       # IoC container with scopes and event broadcasting
-├── dependency_injection_tests/
-└── build.sh                    # Build script
-```
+## Getting started
 
----
-
-## Building
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) to build.
 
 ```bash
+git clone git@github.com:stasync/keel.git
+cd keel
 sh build.sh
 ```
 
-Cleans, builds, and tests all three projects in `release` configuration. Artifacts are written to `artifacts/`.
+The build script compiles everything in release mode, runs the tests, and copies the finished DLLs into `artifacts/delivery/`, with one folder per target framework:
 
----
-
-## Projects
-
-### `utils`
-
-Cross-cutting utilities for type reflection, command execution, threading, security, and math.
-
-#### Type Reflection
-
-**`TypeExtensions`**
-| Member | Description |
-|---|---|
-| `GetStableHashCode(this Type)` | Consistent hash code for a type across app runs |
-| `IsBlittable(this Type)` | Whether a type is blittable (safe for P/Invoke) |
-
-**`Types`**
-| Member | Description |
-|---|---|
-| `AllTracked` | All types tracked across loaded assemblies |
-| `TryGetTypeStableHashCode<T>(out int)` | Stable hash for a generic type |
-| `TryGetTypeStableHashCode(Type, out int)` | Stable hash for a runtime type |
-| `Lookup<TParent>` | All types assignable to `TParent` |
-
-**`TypeAttributeLookup<TAttribute>`**
-| Member | Description |
-|---|---|
-| `Value` | All types in loaded assemblies that carry `TAttribute` |
-| `LookupData` | Struct pairing a type with its attribute instance |
-
-**`TypeInfo`**
-| Member | Description |
-|---|---|
-| `IsBlittable(Type)` | Validates blittability via pinned handle and recursive field checks |
-
-**`DomainUtils`**
-| Member | Description |
-|---|---|
-| `Platform` | Current OS (`Windows` / `Unix` / `Unknown`) |
-| `DomainDirectory` | Application base directory |
-
----
-
-#### Command Execution
-
-**`Command`** (static)
-| Member | Description |
-|---|---|
-| `ExecuteProcessList()` | Returns running OS process list |
-| `StartProcess(path, name, title, args[])` | Launches a process with custom working path |
-| `StartProcessFromCurrentDirectory(name, args[])` | Launches a process from the current directory |
-| `Execute(cmd)` | Runs a shell command asynchronously |
-| `ExecuteAndWaitForResult(cmd)` | Runs a shell command and returns its output |
-
-**`CommandLine`** (static)
-| Member | Description |
-|---|---|
-| `Raw` | Raw command-line string |
-| `CreateInstance<T>()` | Creates `T` and injects matching command-line arguments |
-| `InjectTo<T>(ref T)` | Injects arguments into an existing instance |
-
-**`InjectCommandArgumentAttribute`** — Marks a field or property for command-line injection. `ArgumentName` overrides the default (field name).
-
----
-
-#### Unique IDs
-
-**`UidProvider`**
-| Member | Description |
-|---|---|
-| `Next()` | Monotonically incrementing `uint` |
-
----
-
-#### Logging
-
-**`Logger`** (static)
-| Member | Description |
-|---|---|
-| `LogLevel` | Minimum level to emit (`All` / `Warning` / `Error` / `Exception` / `Disabled`) |
-| `LogReceivedThreaded` | Event fired on any log write |
-| `SetCustomOutput(ILogOutput)` | Replace the default console output |
-| `SetLogLevel(LogLevel)` | Change minimum log level at runtime |
-| `LogInfo(msg)` / `LogWarning(msg)` / `LogError(msg)` / `LogException(e)` | Write a log entry |
-
-**`ILogOutput`** — Implement to provide a custom log sink:
-```csharp
-void Info(string msg);
-void Warning(string msg);
-void Error(string msg);
-void Exception(Exception e);
+```
+artifacts/delivery/
+  net10.0/
+  netstandard2.1/
 ```
 
-**`LogWorker : Worker, ILogOutput`** — File-backed log sink running on a worker thread.
-| Member | Description |
-|---|---|
-| `BuildAndStart(WorkerScope, outputPath?)` | Create and start the worker |
-| `Stopped` | Event fired when the worker stops |
+To use the libraries, reference the DLLs from your project, or add this repository as a git submodule and reference the `.csproj` files directly.
 
----
+## Networking
 
-#### Threading
+The networking library sends messages over UDP. Plain UDP gives no guarantees: packets can be lost, duplicated, or arrive out of order. This library adds the missing pieces on top, and you choose how much of them each message needs.
 
-**`Worker`** (abstract)
-| Member | Description |
-|---|---|
-| `Name` | Thread name |
-| `Uid` | Unique worker identifier |
-| `Start(WorkerScope)` | Start the update loop |
-| `Stop()` | Stop the loop |
-| `ElapsedSinceLastUpdate()` | Time since the last `OnUpdate` call |
-| `OnStart()` / `OnUpdate()` / `OnStop()` | Override in subclasses |
+| Delivery method | What you get | Good for |
+|---|---|---|
+| `Unreliable` | Sent once, may be lost | Frequent updates where only the latest value matters, like positions |
+| `Reliable` | Always arrives, possibly out of order | One-off events, like "item picked up" |
+| `ReliableOrdered` | Always arrives, in the order it was sent | Chat, commands, anything where order matters |
 
-**`WorkerScope`** enum — `CurrentThread`, `NewForegroundThread`, `NewBackgroundThread`
+Nothing runs in the background. Both the server and the client do their work when you call `Update()`, so you decide when networking happens. That fits a game loop or a fixed-rate server tick.
 
-**`WorkerWatchDog : Worker`** — Monitors workers for deadlocks and logs warnings when update cycles exceed expected time steps.
-
----
-
-#### Security
-
-**`EncryptionUtility`** (static)
-| Member | Description |
-|---|---|
-| `Encrypt(data, secret)` | AES-256-CBC encryption; returns base64-encoded ciphertext with prepended IV |
-
-**`SecuredInt`** (struct) — XOR-obfuscated integer. Supports all standard arithmetic and comparison operators.
-
-**`MemConsistency`** (static)
-| Member | Description |
-|---|---|
-| `IsValid()` | Detects memory corruption |
-
----
-
-#### Math
-
-**`RandomExtended`**
-| Member | Description |
-|---|---|
-| `Default` | Thread-static singleton |
-| `Value` | `float` in `[0, 1]` |
-| `Int(min, max)` | Random integer in range |
-| `String(length)` | Random alphanumeric string |
-| `Shuffle<T>(collection)` | Fisher-Yates shuffle |
-| `GetUniqueIdString()` | Pseudo-unique string combining timestamp and random data |
-
----
-
-### `networking`
-
-UDP networking stack with reliable delivery, packet ordering, MTU-aware serialization, and a pluggable data-transfer pipeline.
-
-#### Serialization
-
-**`NetWriter`**
-| Member | Description |
-|---|---|
-| `Position` | Current write offset (`short`) |
-| `SeekZero()` | Reset write position |
-| `ToArray()` | Copy of written bytes |
-| `AsArraySegment()` | Zero-copy view of written bytes |
-| `WritePackedUInt32(uint)` | Variable-length uint encoding |
-| `WritePackedUInt64(ulong)` | Variable-length ulong encoding |
-| `WriteString(string)` | UTF-8 string with length prefix |
-| `WriteBytesAndSize(ArraySegment<byte>)` | Length-prefixed byte payload |
-
-**`NetReader`**
-| Member | Description |
-|---|---|
-| `Position` | Current read offset |
-| `Length` | Buffer length |
-| `ReadPackedUInt32()` | Variable-length uint |
-| `ReadPackedUInt64()` | Variable-length ulong |
-| `ReadString()` | UTF-8 string |
-| `ReadBytesAndSize()` | Length-prefixed bytes |
-
-`NetReader` can be constructed from a `NetWriter`, a `byte[]`, or empty.
-
-**`NetBuffer`** — Low-level byte buffer with `ReadByte` / `WriteByte`, `ReadUnmanaged<T>` / `WriteUnmanaged<T>`, `ReadBytesAsArraySegment` (zero-copy), and `Replace` / `SeekZero`.
-
----
-
-#### Network Utilities
-
-**`Utils`** (static)
-| Member | Description |
-|---|---|
-| `GetIpAddressEthernet()` | IP of the Ethernet interface |
-| `GetIPv4Address()` | First available IPv4 address |
-| `GetAvailableUdpPort()` | Find a free UDP port |
-| `GetAvailableTcpPort()` | Find a free TCP port |
-| `IsUdpPortAvailable(int)` | Check if a UDP port is free |
-| `CanStartHttpListener(string)` | Verify an HTTP prefix can be bound |
-
----
-
-#### High-Level UDP (recommended entry points)
-
-**`ReliableUdpListener`** — Server-side connection manager.
-| Member | Description |
-|---|---|
-| `Port` | Bound port |
-| `Listen(maxConnections)` | Start accepting connections |
-| `Send(connectionUid, data, method)` | Send to a connected client |
-| `Disconnect(connectionUid)` | Force-disconnect a client |
-| `Update()` | Drive connection and data processing (call every frame/tick) |
-| `Connected` | Event — new client connected |
-| `Disconnected` | Event — client disconnected |
-| `DataReceived` | Event — data arrived from client |
-| `ConnectionRejected` | Event — connection rejected |
-| `ValidateConnection` | Delegate — custom connection validation |
-
-**`ReliableUdpClient`** — Client-side connection.
-| Member | Description |
-|---|---|
-| `IsConnected` | Connection state |
-| `ConnectionUid` | Assigned connection ID |
-| `Connect(IPEndPoint, connectionData?)` | Initiate connection |
-| `Send(data, method)` | Send data to server |
-| `Disconnect()` | Disconnect |
-| `Update()` | Drive connection state and heartbeats (call every frame/tick) |
-| `Connected` | Event |
-| `Disconnected` | Event |
-| `ConnectionRejected` | Event |
-| `DataReceived` | Event |
-| `ReliabilityFailure` | Event — ACK timeout reached |
-
-**`DgramDeliveryMethod`** enum
-| Value | Description |
-|---|---|
-| `Unreliable` | Fire-and-forget |
-| `Reliable` | Guaranteed delivery with retransmission |
-| `ReliableOrdered` | Guaranteed delivery in send order |
-
----
-
-#### Low-Level UDP
-
-**`UdpFullProtocol`** — Sits below `ReliableUdpListener` / `ReliableUdpClient`. Handles reliable delivery, duplicate filtering, and ordered queues.
-
-**`UdpReliableProtocol`** — Core UDP socket wrapper with ACK tracking and resend logic.
-
-**`IncomingDataSnapshot`** (struct)
-| Member | Description |
-|---|---|
-| `Uid` | Datagram unique ID |
-| `EndPoint` | Sender endpoint |
-| `Buffer` | Payload bytes |
-| `ProtocolPrefix` | Protocol-layer prefix byte |
-
----
-
-#### Data Transfer Layer Pipeline
-
-Attach layers to `UdpReliableProtocol` to intercept all outgoing and incoming bytes.
-
-**`DataTransferLayer`** (abstract)
-```csharp
-void ProcessOutgoingData(IPEndPoint endpoint, ref ArraySegment<byte> data);
-void ProcessIncomingData(IPEndPoint endpoint, ref ArraySegment<byte> data);
-```
-
-Built-in layers:
-
-| Layer | Description |
-|---|---|
-| `DataTransferAmountCaptureLayer` | Tracks `Sent` and `Received` byte counters |
-| `DataTransferXorEncryptionLayer` | Rotating-key XOR encryption/decryption |
-
----
-
-#### MTU
-
-`MtuBuffer.SIZE = 1452` bytes (Ethernet 1500 − IP header 20 − UDP header 8). Pooled via `Rent` / `Release`.
-
----
-
-### `dependency_injection`
-
-Lightweight IoC container with hierarchical scopes, attribute-based injection, pluggable factories, circular-dependency detection, and a built-in pub/sub event system.
-
-#### Binding
-
-**`ScopeBinder`** — Fluent binding configuration.
-| Method | Description |
-|---|---|
-| `Bind<TInterface, TImplementation>(ImplementationBehaviour)` | Explicit interface-to-implementation binding |
-| `Bind<TInterface, TImplementation>(Func<TImpl>)` | Binding with a delegate factory |
-| `BindToSelf<TImpl>(ImplementationBehaviour)` | Bind a concrete type to itself |
-| `BindToAllImplementedInterfaces<TImpl>(ImplementationBehaviour)` | Bind to every interface the type implements |
-| `BindToDefaultImplementation<TInterface>(ImplementationBehaviour)` | Bind using `[DefaultImplementation]` attribute |
-| `Build()` | Produce a `ScopeDependencyMap` |
-
-**`ImplementationBehaviour`** enum
-| Value | Description |
-|---|---|
-| `Singleton` | One instance shared within a scope |
-| `Transient` | New instance per resolution |
-
----
-
-#### Scopes
-
-**`Scope`** — Resolves dependencies and manages instance lifetimes.
-| Member | Description |
-|---|---|
-| `Provide<TInterface>()` | Resolve `TInterface` to its bound implementation |
-| `Provide(Type)` | Non-generic resolution |
-| `CreateNestedScope()` | Create a child scope (inherits bindings) |
-| `Dispose()` | Dispose all singleton instances in this scope |
-
-**`RootScope : Scope`** — Top-level scope; holds the `DependencyResolvingContext` used during graph construction.
-
----
-
-#### Attributes
-
-**`[DefaultImplementation(typeof(MyImpl))]`** — Placed on an interface to declare its default implementation. Optionally specify a `FactoryType` for custom instantiation.
-
-**`[Inject]`** — Placed on a field or property to have it automatically populated during resolution.
-
----
-
-#### Diagnostics
-
-**`CircularDependencyDetector`** (static)
-| Member | Description |
-|---|---|
-| `Validate(ScopeDependencyMap)` | Throws an exception if any circular dependency is detected in the binding map |
-
----
-
-#### Factories
-
-**`InstanceFactory`** (abstract) — Override `Produce()` to control how an instance is created.
-
-Built-in implementations:
-- **`DefaultFactory`** — Uses reflection and `[Inject]` fields.
-- **`ProxyFactory<T>`** — Wraps a `Func<T>` delegate.
-
----
-
-#### Events (pub/sub)
-
-**`IBroadcaster`**
-| Member | Description |
-|---|---|
-| `RegisterObject(object)` | Auto-discover and register all methods marked with `[EventListener]` |
-| `UnregisterObject(object)` | Remove all listeners registered from an object |
-| `AddListener(eventCode, Action<object[]>)` | Add a listener for an event code |
-| `AddListener(channel, eventCode, Action<object[]>)` | Add a channel-scoped listener |
-| `RemoveListener(...)` | Remove a listener |
-| `Invoke(eventCode, requireReceiver, args[])` | Fire an event on the default channel |
-| `Invoke(channel, eventCode, requireReceiver, args[])` | Fire an event on a specific channel |
-| `ChannelEventCollection` | Inspect registered listeners |
-| `Clear()` | Remove all listeners |
-
-**`Broadcaster : IBroadcaster`** — Concrete implementation. Thread-safe listener registration.
-
-**`[EventListener(eventCode, channel?)]`** — Marks a method as an event handler. Method signature must be `void Method(params object[] args)`.
-
-**`EventParameters`** (struct) — Helper for reading typed arguments from an `object[]` payload.
-```csharp
-var p = new EventParameters(args);
-var x = p.Next<int>();
-var name = p.At<string>(1);
-```
-
-**`IScopeListener`** — Implement on any class that needs a callback after the DI container finishes resolving the full object graph:
-```csharp
-void OnResolved();
-```
-
----
-
-#### Introspection
-
-| Interface | Description |
-|---|---|
-| `IReadOnlyEvent` | `ListenerCount`, `GetListeners()` |
-| `IReadOnlyEventCollection` | Event code → `IReadOnlyEvent` |
-| `IReadOnlyChannelEventCollection` | Channel → `IReadOnlyEventCollection` |
-
----
-
-## Quick-Start Examples
-
-### Dependency Injection
+### A simple server
 
 ```csharp
-var binder = new ScopeBinder();
-binder.Bind<IService, MyService>(ImplementationBehaviour.Singleton);
+using System;
+using System.Threading;
+using Core.Networking.Udp;
 
-var map = binder.Build();
-CircularDependencyDetector.Validate(map);
+// Port 0 picks any free port; read it back from server.Port.
+var server = new ReliableUdpListener(maxConnections: 32, port: 7777, protocolKey: 0);
 
-var scope = new RootScope(map);
-var svc = scope.Provide<IService>();
-```
+server.Connected += (connectionUid, request) =>
+    Console.WriteLine($"Client {connectionUid} connected from {request.EndPoint}");
 
-### Event Broadcasting
+server.Disconnected += connectionUid =>
+    Console.WriteLine($"Client {connectionUid} left");
 
-```csharp
-const ushort OnPlayerJoined = 1;
+// Echo every message back to whoever sent it, using the same delivery method.
+server.DataReceived += (connectionUid, data, deliveryMethod) =>
+    server.SendTo(connectionUid, data, deliveryMethod);
 
-var broadcaster = new Broadcaster();
-broadcaster.AddListener(OnPlayerJoined, args => Console.WriteLine($"Player joined: {args[0]}"));
-broadcaster.Invoke(OnPlayerJoined, requireReceiver: false, "Alice");
-
-// Attribute-based registration
-class GameManager {
-    [EventListener(OnPlayerJoined)]
-    void HandleJoin(params object[] args) { ... }
+while (true)
+{
+    server.Update();
+    Thread.Sleep(10);
 }
-broadcaster.RegisterObject(new GameManager());
 ```
 
-### UDP Client / Server
+### A simple client
+
+```csharp
+using System;
+using System.Net;
+using System.Threading;
+using Core.Networking.Udp;
+using Core.Networking.Udp.LowLevel;
+
+var client = new ReliableUdpClient();
+
+client.Connected += () =>
+{
+    Console.WriteLine($"Connected with id {client.ConnectionUid}");
+    client.Send(new byte[] { 1, 2, 3 }, UdpFullProtocol.DgramDeliveryMethod.Reliable);
+};
+
+client.DataReceived += (data, deliveryMethod) =>
+    Console.WriteLine($"Server sent back {data.Length} bytes");
+
+client.ConnectionRejected += reason =>
+    Console.WriteLine($"Server refused the connection: {reason}");
+
+client.Connect(new IPEndPoint(IPAddress.Loopback, 7777));
+
+while (true)
+{
+    client.Update();
+    Thread.Sleep(10);
+}
+```
+
+### Sending structured data
+
+Messages are plain byte arrays. Use `NetWriter` and `NetReader` to pack values into them and read them back, in the same order.
+
+```csharp
+using Core.Networking;
+
+var writer = new NetWriter();
+writer.WriteInt32(42);           // player id
+writer.WriteString("Alice");     // name
+writer.WriteSingle(3.5f);        // speed
+
+client.Send(writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.ReliableOrdered);
+```
+
+```csharp
+server.DataReceived += (connectionUid, data, deliveryMethod) =>
+{
+    var reader = new NetReader(data);
+    var playerId = reader.ReadInt32();
+    var name = reader.ReadString();
+    var speed = reader.ReadSingle();
+};
+```
+
+`NetWriter` also has compact encodings for whole numbers (`WritePackedUInt32`, `WritePackedUInt64`), which use fewer bytes for small values.
+
+### Deciding who can connect
+
+A client can send a short string when it connects, such as a login token or a game version. The server looks at it and decides whether to accept the connection.
 
 ```csharp
 // Server
-var listener = new ReliableUdpListener();
-listener.DataReceived += (uid, data) => { /* handle */ };
-listener.Listen(maxConnections: 32);
-while (true) { listener.Update(); }
+server.ValidateConnection += (in ReliableUdpListener.ConnectionRequest request) =>
+    request.ConnectionData == "game-v1.4";
 
 // Client
-var client = new ReliableUdpClient();
-client.Connected += uid => Console.WriteLine("Connected");
-client.Connect(new IPEndPoint(IPAddress.Loopback, 7777));
-while (true) { client.Update(); }
-client.Send(payload, DgramDeliveryMethod.Reliable);
+client.Connect(serverEndPoint, connectionData: "game-v1.4");
 ```
 
+A rejected client gets a `ConnectionRejected` event, with the reason: either the server is full or validation failed.
+
+Misbehaving addresses can be blocked for a while with `server.AddOrUpdateAddressInBlacklist(address, millisecondsToAdd)`.
+
+### Testing on a bad network
+
+Everything works on your local machine, but real networks lose and delay packets. You can attach simulators to see how your code copes:
+
+```csharp
+using Core.Networking.Udp.LowLevel.Simulators;
+
+client.RegisterIncomingPacketSimulator(new SimulatePacketLossByChance { PacketLossChancePercent = 5 });
+client.RegisterIncomingPacketSimulator(new SimulatePacketDelay { PacketMinDelayMs = 50, PacketMaxDelayMs = 150 });
+```
+
+There are also simulators for duplicated packets and for dropping everything, to test disconnects.
+
+### Measuring and transforming traffic
+
+Data transfer layers let you inspect or modify every packet going in or out. Two layers are built in: one counts traffic and one applies simple XOR encryption.
+
+```csharp
+using Core.Networking.Udp.LowLevel.DataTransferLayers;
+
+var traffic = new DataTransferAmountCaptureLayer();
+client.RegisterDataTransferLayer(traffic);
+
+// later
+Console.WriteLine($"Sent {traffic.BytesSent} bytes in {traffic.PacketsSent} packets");
+```
+
+To write your own layer, inherit from `UdpReliableProtocol.DataTransferLayer`.
+
+## Dependency Injection
+
+The container builds your objects for you and fills in the services they depend on. You describe which implementation goes with each interface, then ask the scope for what you need.
+
+```csharp
+using System;
+using Core.DependencyInjection;
+
+public interface IClock
+{
+    DateTime Now { get; }
+}
+
+public sealed class SystemClock : IClock
+{
+    public DateTime Now => DateTime.UtcNow;
+}
+
+public interface IGreeter
+{
+    string Greet(string name);
+}
+
+public sealed class Greeter : IGreeter
+{
+    [Inject] private readonly IClock _clock = null;
+
+    public string Greet(string name) => $"Hello {name}, it is {_clock.Now:t}";
+}
+```
+
+```csharp
+var binder = new ScopeBinder();
+binder.Bind<IClock, SystemClock>();
+binder.Bind<IGreeter, Greeter>();
+
+using var scope = new RootScope(binder.ToDependencyMap());
+
+var greeter = scope.Provide<IGreeter>();
+Console.WriteLine(greeter.Greet("Alice"));
+```
+
+Dependencies are filled into fields and auto-properties marked with `[Inject]`. Classes are created through their parameterless constructor.
+
+### Lifetimes
+
+Each binding is either a `Singleton` (the default), where one instance is shared within the scope, or `Transient`, where every request creates a new instance.
+
+```csharp
+binder.Bind<IGreeter, Greeter>(ImplementationBehaviour.Transient);
+```
+
+### Other ways to bind
+
+```csharp
+// Bind a class to itself, without an interface.
+binder.BindToSelf<GameSession>();
+
+// Bind a class to every interface it implements.
+binder.BindToAllImplementedInterfaces<AudioSystem>();
+
+// Build the instance yourself.
+binder.Bind<ISettings, Settings>(() => Settings.Load("settings.json"));
+```
+
+An interface can also declare its usual implementation, so callers don't have to repeat it:
+
+```csharp
+[DefaultImplementation(typeof(SystemClock))]
+public interface IClock { DateTime Now { get; } }
+
+binder.BindToDefaultImplementation<IClock>();
+```
+
+### Child scopes
+
+A child scope adds its own bindings and can still use everything from its parent. This works well for things with a shorter life than the application, such as a single match or a user session.
+
+```csharp
+var matchBinder = new ScopeBinder();
+matchBinder.Bind<IMatchState, MatchState>();
+
+using var match = scope.CreateChildScope(matchBinder.ToDependencyMap());
+
+// MatchState can [Inject] IClock from the parent scope.
+var state = match.Provide<IMatchState>();
+```
+
+### Running code once everything is wired
+
+Injected fields are empty while an object is being constructed. If a service needs to do setup work that uses its dependencies, implement `IScopeListener`. `OnResolved` is called after the whole object graph has been built.
+
+```csharp
+using Core.DependencyInjection.Interface;
+
+public sealed class Scoreboard : IScopeListener
+{
+    [Inject] private readonly IClock _clock = null;
+
+    public void OnResolved()
+    {
+        // _clock is ready to use here.
+    }
+}
+```
+
+Circular dependencies (A needs B, B needs A) are detected when the scope is created, and throw an exception that names the types involved.
+
+## Events
+
+The event system lets parts of your program talk to each other without holding references to each other. One side sends an event with a numeric code, and anyone listening for that code receives it.
+
+```csharp
+using System;
+using Core.DependencyInjection.Events;
+
+const ushort PlayerJoined = 1;
+
+var events = new Broadcaster();
+
+events.AddListener(PlayerJoined, args =>
+{
+    var p = new EventParameters(args);
+    var name = p.Next<string>();
+    var level = p.Next<int>();
+    Console.WriteLine($"{name} joined at level {level}");
+});
+
+events.Invoke(PlayerJoined, requireReceiver: false, "Alice", 12);
+```
+
+Set `requireReceiver` to `true` if nobody listening would be a mistake. An error is then logged whenever an event goes unheard.
+
+The broadcaster fits well with the container. Bind `IBroadcaster`, inject it, and register whole objects. Their methods marked with `[EventListener]` are picked up automatically.
+
+```csharp
+public static class GameEvents
+{
+    public const ushort PlayerJoined = 1;
+}
+
+public sealed class Scoreboard : IScopeListener
+{
+    [Inject] private readonly IBroadcaster _events = null;
+
+    public void OnResolved() => _events.RegisterObject(this);
+
+    [EventListener(GameEvents.PlayerJoined)]
+    private void OnPlayerJoined(object[] args)
+    {
+        var name = new EventParameters(args).Next<string>();
+        // update the scoreboard
+    }
+}
+```
+
+```csharp
+binder.BindToDefaultImplementation<IBroadcaster>();
+binder.BindToSelf<Scoreboard>();
+```
+
+Events can also be split into channels, so the same code can mean different things in different parts of the program. Pass `channel` to `AddListener`, `Invoke` and `[EventListener]`.
+
+## Utils
+
+### Logging
+
+```csharp
+using Core.Utils.Debug;
+
+Logger.LogInfo("Server started");
+Logger.LogWarning("Config file missing, using defaults");
+Logger.LogError("Could not bind port");
+
+Logger.SetLogLevel(LogLevel.Warning); // hide info messages
+```
+
+Nothing is printed until you choose where logs should go. `LogWorker` prints them to the console in color on a background thread, and can also save them to a file:
+
+```csharp
+using Core.Utils.Threading;
+
+var log = LogWorker.BuildAndStart(WorkerScope.NewBackgroundThread, "logs/server.log");
+Logger.SetCustomOutput(log);
+```
+
+Leave out the file path to log to the console only. To send logs anywhere else, implement `ILogOutput`.
+
+### Background workers
+
+A `Worker` runs a piece of code in a loop at a fixed interval, on its own thread or on the current one.
+
+```csharp
+using Core.Utils.Debug;
+using Core.Utils.Threading;
+
+public sealed class AutoSave : Worker
+{
+    public AutoSave() : base(millisecondsTimeStep: 60_000, workerName: "AutoSave", monitor: false) { }
+
+    protected override void OnUpdate() => Logger.LogInfo("Saving...");
+}
+
+var autoSave = new AutoSave();
+autoSave.Start(WorkerScope.NewBackgroundThread);
+
+// later
+autoSave.Stop();
+```
+
+`OnStart` and `OnStop` can be overridden as well. `WorkerWatchDog` can watch the other workers and warn when one of them stalls.
+
+### Command-line settings
+
+Mark fields with `[InjectCommandArgument]` and they are filled from the command line.
+
+```csharp
+using Core.Utils;
+
+public sealed class ServerSettings
+{
+    [InjectCommandArgument("port")] public int Port = 7777;
+    [InjectCommandArgument] public int maxPlayers = 16;
+}
+
+// MyServer -port 9000 -maxPlayers 64
+var settings = CommandLine.CreateInstance<ServerSettings>();
+```
+
+Values can also come from files placed next to the executable. A file named `port.cmdparam` that contains `9000` has the same effect as passing `-port 9000`.
+
+### Encryption
+
+```csharp
+using Core.Utils.Security;
+
+var encrypted = EncryptionUtility.Encrypt("secret message", "my-password");
+var decrypted = EncryptionUtility.Decrypt(encrypted, "my-password");
+```
+
+This uses AES-256. The result is a plain string, so it's easy to store or send.
+
+### Other helpers
+
+- `RandomExtended` generates random numbers, strings and IDs, and shuffles collections.
+- `UidProvider` hands out increasing unique numbers.
+- `Command` starts processes and runs shell commands.
+- `Types` and `TypeAttributeLookup<T>` find types across the loaded assemblies, for example every class that implements an interface or carries an attribute.
+- `DomainUtils` tells you the current platform and the application directory.
+
+## Project layout
+
+```
+utils/                        shared helpers used by the other two libraries
+networking/                   UDP client, server and serialization
+networking_tests/
+dependency_injection/         container, scopes and events
+dependency_injection_tests/
+build.sh                      builds, tests and packages everything
+```
+
+## Running the tests
+
+```bash
+dotnet test networking_tests
+dotnet test dependency_injection_tests
+```
+
+`build.sh` runs both suites as part of the full build.
