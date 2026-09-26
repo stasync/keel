@@ -41,12 +41,21 @@ jobs:
           path: artifacts/delivery/
           if-no-files-found: error
 
+  # Pushes to main refresh the rolling "latest-build" pre-release.
+  # Pushing a v* tag publishes a permanent release for that version.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # One release update at a time, so two quick pushes can't race on the same release.
+    concurrency:
+      group: release-${{ github.ref }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'latest-build' }}
 
     steps:
       - name: Download DLLs
@@ -60,17 +69,29 @@ jobs:
           for dir in delivery/*/; do
             framework=$(basename "$dir")
             framework=${framework#release_}
-            (cd "$dir" && zip -r "$GITHUB_WORKSPACE/keel-$GITHUB_REF_NAME-$framework.zip" .)
+            (cd "$dir" && zip -r "$GITHUB_WORKSPACE/keel-$RELEASE_NAME-$framework.zip" .)
           done
           ls -l keel-*.zip
 
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Publish versioned release
+        if: github.ref_type == 'tag'
         run: |
           # The release may already exist if it was created by hand on GitHub; then just attach the files.
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" keel-*.zip --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view "$RELEASE_NAME" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_NAME" keel-*.zip --clobber
           else
-            gh release create "$GITHUB_REF_NAME" keel-*.zip --title "$GITHUB_REF_NAME" --generate-notes --repo "$GITHUB_REPOSITORY"
+            gh release create "$RELEASE_NAME" keel-*.zip --title "$RELEASE_NAME" --generate-notes
           fi
+
+      - name: Refresh latest build
+        if: github.ref_type == 'branch'
+        run: |
+          # Recreate the pre-release so its tag moves to the commit that was just built.
+          gh release delete "$RELEASE_NAME" --cleanup-tag --yes 2> /dev/null || true
+          gh release create "$RELEASE_NAME" keel-*.zip \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Latest build" \
+            --notes "Built automatically from the newest commit on main: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA
+
+          This build is replaced on every push. For something stable to depend on, use a numbered release."

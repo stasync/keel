@@ -32,7 +32,7 @@ artifacts/delivery/
 
 To use the libraries, reference the DLLs from your project, or add this repository as a git submodule and reference the `.csproj` files directly.
 
-Every push to `main` is also built and tested on GitHub. If you need a change that hasn't been released yet, download the DLLs from that run's page under [Actions](https://github.com/stasync/keel/actions/workflows/build.yml).
+If you need a change that hasn't made it into a numbered release yet, use the [latest build](https://github.com/stasync/keel/releases/tag/latest-build). It's rebuilt and tested automatically after every change to `main`, so it's always current, but it isn't a stable version.
 
 ## Networking
 
