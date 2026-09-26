@@ -1,5 +1,7 @@
 # Keel
 
+[![Build](https://github.com/stasync/keel/actions/workflows/build.yml/badge.svg)](https://github.com/stasync/keel/actions/workflows/build.yml)
+
 Keel is a small set of C# libraries that serve as a base layer for other projects. It has three parts:
 
 - **Networking** is a UDP client and server that can deliver messages reliably and in order. Use it where TCP is too slow or too rigid, such as real-time games and simulations.
@@ -22,11 +24,13 @@ The build script compiles everything in release mode, runs the tests, and copies
 
 ```
 artifacts/delivery/
-  net10.0/
-  netstandard2.1/
+  release_net10.0/
+  release_netstandard2.1/
 ```
 
 To use the libraries, reference the DLLs from your project, or add this repository as a git submodule and reference the `.csproj` files directly.
+
+You can also skip building. Every push to `main` is built and tested on GitHub, and the resulting DLLs can be downloaded from the run's page under [Actions](https://github.com/stasync/keel/actions/workflows/build.yml).
 
 ## Networking
 

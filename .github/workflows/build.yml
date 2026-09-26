@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: sh build.sh build
+
+      - name: Test
+        run: sh build.sh test
+
+      - name: Package
+        run: sh build.sh package
+
+      - name: Upload DLLs
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-${{ github.run_number }}
+          path: artifacts/delivery/
+          if-no-files-found: error
