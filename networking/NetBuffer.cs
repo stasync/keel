@@ -1,8 +1,8 @@
-﻿using Core.Utils.Debug;
+﻿using Keel.Utils.Debug;
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Core.Networking
+namespace Keel.Networking
 {
     public sealed class NetBuffer
     {

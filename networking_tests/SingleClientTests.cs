@@ -1,7 +1,7 @@
-using Core.Networking.Udp.LowLevel;
+using Keel.Networking.Udp.LowLevel;
 using System.Net;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     public class SingleClientTests : IDisposable
     {

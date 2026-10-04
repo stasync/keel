@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Core.Networking.Udp.LowLevel
+namespace Keel.Networking.Udp.LowLevel
 {
     public readonly struct IncomingDataSnapshot
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.DependencyInjection.Factories
+namespace Keel.DependencyInjection.Factories
 {
     public abstract class InstanceFactory
     {

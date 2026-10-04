@@ -1,4 +1,4 @@
-﻿namespace Core.DependencyInjection
+﻿namespace Keel.DependencyInjection
 {
     public enum ImplementationBehaviour
     {

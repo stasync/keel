@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace Core.Utils.Math
+namespace Keel.Utils.Math
 {
     public static class RandomExtended<T> where T : RandomExtended, new()
     {

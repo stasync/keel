@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.Utils.Security
+namespace Keel.Utils.Security
 {
     public readonly struct SecuredInt : IComparable<SecuredInt>, IEquatable<SecuredInt>
     {

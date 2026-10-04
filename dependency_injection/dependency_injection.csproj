@@ -4,7 +4,8 @@
         <LangVersion>9.0</LangVersion>
         <OutputType>Library</OutputType>
         <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
-        <RootNamespace>Core.DependencyInjection</RootNamespace>
+        <RootNamespace>Keel.DependencyInjection</RootNamespace>
+        <AssemblyName>Keel.DependencyInjection</AssemblyName>
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     </PropertyGroup>
 

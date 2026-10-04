@@ -1,4 +1,4 @@
-﻿namespace Core.DependencyInjection.Events
+﻿namespace Keel.DependencyInjection.Events
 {
     public struct EventParameters
     {

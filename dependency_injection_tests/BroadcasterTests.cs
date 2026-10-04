@@ -1,7 +1,7 @@
-﻿using Core.DependencyInjection.Events;
-using Core.DependencyInjection.Interface;
+﻿using Keel.DependencyInjection.Events;
+using Keel.DependencyInjection.Interface;
 
-namespace Core.DependencyInjection.Tests
+namespace Keel.DependencyInjection.Tests
 {
     public class BroadcasterTests
     {

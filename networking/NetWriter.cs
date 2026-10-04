@@ -1,10 +1,10 @@
-﻿using Core.Utils.Debug;
+﻿using Keel.Utils.Debug;
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Core.Networking
+namespace Keel.Networking
 {
     public sealed class NetWriter
     {

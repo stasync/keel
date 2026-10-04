@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     public class SamePortListenerTests
     {

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Net;
 
-namespace Core.Networking.Udp.LowLevel.Simulators
+namespace Keel.Networking.Udp.LowLevel.Simulators
 {
     /// <summary>
     /// A simulator example - does nothing.

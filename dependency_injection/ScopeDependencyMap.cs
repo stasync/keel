@@ -1,8 +1,8 @@
-﻿using Core.DependencyInjection.Factories;
+﻿using Keel.DependencyInjection.Factories;
 using System;
 using System.Collections.Generic;
 
-namespace Core.DependencyInjection
+namespace Keel.DependencyInjection
 {
     public sealed class ScopeDependencyMap
     {

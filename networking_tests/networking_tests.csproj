@@ -4,7 +4,8 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
-        <RootNamespace>Core.Networking.Tests</RootNamespace>
+        <RootNamespace>Keel.Networking.Tests</RootNamespace>
+        <AssemblyName>Keel.Networking.Tests</AssemblyName>
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
         <LangVersion>14</LangVersion>
     </PropertyGroup>

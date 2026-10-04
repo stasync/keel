@@ -12,7 +12,7 @@ The libraries target .NET Standard 2.1 and .NET 10, so they run on any runtime t
 
 ## Getting started
 
-The quickest way to get the libraries is to download them from [Releases](https://github.com/stasync/keel/releases). Every release has two zips, one for .NET 10 and one for .NET Standard 2.1. Each contains `utils.dll`, `networking.dll` and `dependency_injection.dll`. Reference the DLLs you need from your project.
+The quickest way to get the libraries is to download them from [Releases](https://github.com/stasync/keel/releases). Every release has two zips, one for .NET 10 and one for .NET Standard 2.1. Each contains `Keel.Utils.dll`, `Keel.Networking.dll` and `Keel.DependencyInjection.dll`. Reference the DLLs you need from your project.
 
 To build from source instead, you need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
@@ -51,7 +51,7 @@ Nothing runs in the background. Both the server and the client do their work whe
 ```csharp
 using System;
 using System.Threading;
-using Core.Networking.Udp;
+using Keel.Networking.Udp;
 
 // Port 0 picks any free port; read it back from server.Port.
 var server = new ReliableUdpListener(maxConnections: 32, port: 7777, protocolKey: 0);
@@ -79,8 +79,8 @@ while (true)
 using System;
 using System.Net;
 using System.Threading;
-using Core.Networking.Udp;
-using Core.Networking.Udp.LowLevel;
+using Keel.Networking.Udp;
+using Keel.Networking.Udp.LowLevel;
 
 var client = new ReliableUdpClient();
 
@@ -110,7 +110,7 @@ while (true)
 Messages are plain byte arrays. Use `NetWriter` and `NetReader` to pack values into them and read them back, in the same order.
 
 ```csharp
-using Core.Networking;
+using Keel.Networking;
 
 var writer = new NetWriter();
 writer.WriteInt32(42);           // player id
@@ -154,7 +154,7 @@ Misbehaving addresses can be blocked for a while with `server.AddOrUpdateAddress
 Everything works on your local machine, but real networks lose and delay packets. You can attach simulators to see how your code copes:
 
 ```csharp
-using Core.Networking.Udp.LowLevel.Simulators;
+using Keel.Networking.Udp.LowLevel.Simulators;
 
 client.RegisterIncomingPacketSimulator(new SimulatePacketLossByChance { PacketLossChancePercent = 5 });
 client.RegisterIncomingPacketSimulator(new SimulatePacketDelay { PacketMinDelayMs = 50, PacketMaxDelayMs = 150 });
@@ -167,7 +167,7 @@ There are also simulators for duplicated packets and for dropping everything, to
 Data transfer layers let you inspect or modify every packet going in or out. Two layers are built in: one counts traffic and one applies simple XOR encryption.
 
 ```csharp
-using Core.Networking.Udp.LowLevel.DataTransferLayers;
+using Keel.Networking.Udp.LowLevel.DataTransferLayers;
 
 var traffic = new DataTransferAmountCaptureLayer();
 client.RegisterDataTransferLayer(traffic);
@@ -184,7 +184,7 @@ The container builds your objects for you and fills in the services they depend 
 
 ```csharp
 using System;
-using Core.DependencyInjection;
+using Keel.DependencyInjection;
 
 public interface IClock
 {
@@ -271,7 +271,7 @@ var state = match.Provide<IMatchState>();
 Injected fields are empty while an object is being constructed. If a service needs to do setup work that uses its dependencies, implement `IScopeListener`. `OnResolved` is called after the whole object graph has been built.
 
 ```csharp
-using Core.DependencyInjection.Interface;
+using Keel.DependencyInjection.Interface;
 
 public sealed class Scoreboard : IScopeListener
 {
@@ -292,7 +292,7 @@ The event system lets parts of your program talk to each other without holding r
 
 ```csharp
 using System;
-using Core.DependencyInjection.Events;
+using Keel.DependencyInjection.Events;
 
 const ushort PlayerJoined = 1;
 
@@ -346,7 +346,7 @@ Events can also be split into channels, so the same code can mean different thin
 ### Logging
 
 ```csharp
-using Core.Utils.Debug;
+using Keel.Utils.Debug;
 
 Logger.LogInfo("Server started");
 Logger.LogWarning("Config file missing, using defaults");
@@ -358,7 +358,7 @@ Logger.SetLogLevel(LogLevel.Warning); // hide info messages
 Nothing is printed until you choose where logs should go. `LogWorker` prints them to the console in color on a background thread, and can also save them to a file:
 
 ```csharp
-using Core.Utils.Threading;
+using Keel.Utils.Threading;
 
 var log = LogWorker.BuildAndStart(WorkerScope.NewBackgroundThread, "logs/server.log");
 Logger.SetCustomOutput(log);
@@ -371,8 +371,8 @@ Leave out the file path to log to the console only. To send logs anywhere else, 
 A `Worker` runs a piece of code in a loop at a fixed interval, on its own thread or on the current one.
 
 ```csharp
-using Core.Utils.Debug;
-using Core.Utils.Threading;
+using Keel.Utils.Debug;
+using Keel.Utils.Threading;
 
 public sealed class AutoSave : Worker
 {
@@ -395,7 +395,7 @@ autoSave.Stop();
 Mark fields with `[InjectCommandArgument]` and they are filled from the command line.
 
 ```csharp
-using Core.Utils;
+using Keel.Utils;
 
 public sealed class ServerSettings
 {
@@ -412,7 +412,7 @@ Values can also come from files placed next to the executable. A file named `por
 ### Encryption
 
 ```csharp
-using Core.Utils.Security;
+using Keel.Utils.Security;
 
 var encrypted = EncryptionUtility.Encrypt("secret message", "my-password");
 var decrypted = EncryptionUtility.Decrypt(encrypted, "my-password");

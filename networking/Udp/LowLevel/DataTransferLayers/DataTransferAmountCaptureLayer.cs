@@ -2,7 +2,7 @@ using System;
 using System.Net;
 using System.Runtime.CompilerServices;
 
-namespace Core.Networking.Udp.LowLevel.DataTransferLayers
+namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
 {
     public sealed class DataTransferAmountCaptureLayer : UdpReliableProtocol.DataTransferLayer
     {

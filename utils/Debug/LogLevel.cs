@@ -1,4 +1,4 @@
-﻿namespace Core.Utils.Debug
+﻿namespace Keel.Utils.Debug
 {
     public enum LogLevel : byte
     {

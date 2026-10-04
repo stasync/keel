@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.Utils
+namespace Keel.Utils
 {
     [AttributeUsage(AttributeTargets.Field)]
     public class InjectCommandArgumentAttribute : Attribute

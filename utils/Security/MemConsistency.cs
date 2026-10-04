@@ -1,4 +1,4 @@
-﻿namespace Core.Utils.Security
+﻿namespace Keel.Utils.Security
 {
     public static class MemConsistency
     {

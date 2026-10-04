@@ -1,7 +1,7 @@
 using System;
 using System.Net;
 
-namespace Core.Networking.Udp.LowLevel.Internal
+namespace Keel.Networking.Udp.LowLevel.Internal
 {
     internal readonly struct DatagramSnapshot
     {

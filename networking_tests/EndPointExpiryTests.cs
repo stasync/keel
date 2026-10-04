@@ -1,8 +1,8 @@
-﻿using Core.Networking.Udp.LowLevel;
+﻿using Keel.Networking.Udp.LowLevel;
 using System.Net;
 using Xunit.Abstractions;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     /// <summary>
     /// Per endpoint tracking state is allocated on the first datagram from any source address, before anything

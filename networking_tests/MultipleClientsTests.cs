@@ -1,10 +1,10 @@
-using Core.Networking.Tests.DataTransferLayers;
-using Core.Networking.Udp.LowLevel;
-using Core.Networking.Udp.LowLevel.DataTransferLayers;
-using Core.Networking.Udp.LowLevel.Simulators;
+using Keel.Networking.Tests.DataTransferLayers;
+using Keel.Networking.Udp.LowLevel;
+using Keel.Networking.Udp.LowLevel.DataTransferLayers;
+using Keel.Networking.Udp.LowLevel.Simulators;
 using System.Net;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     public class MultipleClientsTests : IDisposable
     {

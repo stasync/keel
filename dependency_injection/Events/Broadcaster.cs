@@ -1,10 +1,10 @@
-﻿using Core.DependencyInjection.Events.Internal;
-using Core.Utils.Debug;
+﻿using Keel.DependencyInjection.Events.Internal;
+using Keel.Utils.Debug;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Core.DependencyInjection.Events
+namespace Keel.DependencyInjection.Events
 {
     public class Broadcaster : IBroadcaster
     {

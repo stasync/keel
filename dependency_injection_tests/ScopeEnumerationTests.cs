@@ -1,4 +1,4 @@
-namespace Core.DependencyInjection.Tests
+namespace Keel.DependencyInjection.Tests
 {
     public class ScopeEnumerationTests
     {

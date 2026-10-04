@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.Utils
+namespace Keel.Utils
 {
     public enum EnvironmentPlatform
     {

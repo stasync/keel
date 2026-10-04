@@ -1,8 +1,8 @@
-﻿using Core.Utils.Debug;
+﻿using Keel.Utils.Debug;
 using System;
 using System.Diagnostics;
 
-namespace Core.Utils
+namespace Keel.Utils
 {
     public static class Command
     {

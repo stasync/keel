@@ -1,7 +1,7 @@
 #pragma warning disable CS0414 // Field is assigned but its value is never used
-using Core.DependencyInjection.Interface;
+using Keel.DependencyInjection.Interface;
 
-namespace Core.DependencyInjection.Tests
+namespace Keel.DependencyInjection.Tests
 {
     public class ErrorHandlingTests
     {

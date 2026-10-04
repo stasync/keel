@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace Core.Utils.Threading
+namespace Keel.Utils.Threading
 {
     public abstract class Worker
     {

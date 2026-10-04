@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 
-namespace Core.Utils.Threading
+namespace Keel.Utils.Threading
 {
     public sealed class WorkerWatchDog : Worker
     {

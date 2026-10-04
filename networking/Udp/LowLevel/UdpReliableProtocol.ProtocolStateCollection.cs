@@ -1,10 +1,10 @@
-﻿using Core.Networking.Udp.LowLevel.Internal;
+﻿using Keel.Networking.Udp.LowLevel.Internal;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Runtime.CompilerServices;
 
-namespace Core.Networking.Udp.LowLevel
+namespace Keel.Networking.Udp.LowLevel
 {
     public partial class UdpReliableProtocol
     {

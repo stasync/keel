@@ -1,8 +1,8 @@
-﻿using Core.DependencyInjection.Internal;
+﻿using Keel.DependencyInjection.Internal;
 using System;
 using System.Collections.Generic;
 
-namespace Core.DependencyInjection.Diagnostics
+namespace Keel.DependencyInjection.Diagnostics
 {
     public static class CircularDependencyDetector
     {

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 
-namespace Core.Networking.Udp.LowLevel.Simulators
+namespace Keel.Networking.Udp.LowLevel.Simulators
 {
     public sealed class SimulatePacketLossPercentage : UdpReliableProtocol.IncomingPacketSimulator
     {

@@ -1,10 +1,10 @@
-﻿using Core.Utils.Debug;
+﻿using Keel.Utils.Debug;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace Core.DependencyInjection.Events.Internal
+namespace Keel.DependencyInjection.Events.Internal
 {
     internal static class EventListenerMethodCache
     {
