@@ -10,9 +10,9 @@ using System.Security.Cryptography;
 namespace Keel.Networking.Udp
 {
     /// <summary>
-    /// A high level listener based on <see cref="UdpFullProtocol"/>.
+    /// A high level server based on <see cref="UdpFullProtocol"/>.
     /// </summary>
-    public sealed class ReliableUdpListener : IDisposable
+    public sealed class ReliableUdpServer : IDisposable
     {
         public delegate bool ValidateConnectionDelegate(in ConnectionRequest connectionRequest);
 
@@ -55,8 +55,8 @@ namespace Keel.Networking.Udp
         }
 
         /// <summary>
-        /// Derived from <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/> so the two horizons stay in
-        /// the step: there is no point declaring a connection dead while the layer below is still retransmitting
+        /// Derived from <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/> so the two horizons stay
+        /// in step: there is no point declaring a connection dead while the layer below is still retransmitting
         /// for it, nor retransmitting for a connection that is already gone.
         /// </summary>
         public const uint HEARTBEAT_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS;
@@ -80,7 +80,7 @@ namespace Keel.Networking.Udp
 
         private DateTime _nextRecentDisconnectsPurgeTime;
 
-        public ReliableUdpListener(int maxConnections, int port, ushort protocolKey)
+        public ReliableUdpServer(int maxConnections, int port, ushort protocolKey)
         {
             Port = port;
             if (Port <= 0)
@@ -209,7 +209,7 @@ namespace Keel.Networking.Udp
 
         private void ProcessData(in IncomingDataSnapshot incomingDataSnapshot)
         {
-            // As we process incoming data, we should always be ready that it might in some incorrect format.
+            // As we process incoming data, we should always be ready that it might be in an incorrect format.
             try
             {
                 _dataReader.Replace(incomingDataSnapshot.Buffer);
@@ -241,7 +241,7 @@ namespace Keel.Networking.Udp
 
                             if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
                             {
-                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesn't match the slot '{connectionSlot}': '{messageCode}'");
                                 break;
                             }
 
@@ -280,7 +280,7 @@ namespace Keel.Networking.Udp
 
                             if (connection.Uid != connectionUid || connection.ValidationUid != validationUid)
                             {
-                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesnt match the slot '{connectionSlot}': '{messageCode}'");
+                                UnexpectedClientAction(incomingDataSnapshot.EndPoint, $"Unexpected data - connection '{connectionUid}' doesn't match the slot '{connectionSlot}': '{messageCode}'");
                                 break;
                             }
 
@@ -326,7 +326,7 @@ namespace Keel.Networking.Udp
                 _connectionSlots[i] = null;
                 _recentDisconnectsLookup[connection.Uid] = DateTime.UtcNow;
 
-                Logger.LogInfo($"[{GetType().FullName}] Connection ' {connection.Uid}' disconnected due to heartbeat timeout ({heartBeatDelta.TotalMilliseconds})ms.");
+                Logger.LogInfo($"[{GetType().FullName}] Connection '{connection.Uid}' disconnected due to heartbeat timeout ({heartBeatDelta.TotalMilliseconds}ms).");
 
                 // Callback.
                 Disconnected(connection.Uid);
@@ -363,7 +363,7 @@ namespace Keel.Networking.Udp
             UnexpectedClientAction(sender, "Unexpected data received on the protocol level.");
         }
 
-        public void SentToAll(ArraySegment<byte> data, UdpFullProtocol.DgramDeliveryMethod dgramDeliveryMethod)
+        public void SendToAll(ArraySegment<byte> data, UdpFullProtocol.DgramDeliveryMethod dgramDeliveryMethod)
         {
             EnsureValid();
 

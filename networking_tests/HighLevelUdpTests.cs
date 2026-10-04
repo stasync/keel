@@ -5,19 +5,19 @@ using System.Net;
 namespace Keel.Networking.Tests
 {
     /// <summary>
-    /// Test for high level UPD api - <see cref="ReliableUdpListener"/> & <see cref="ReliableUdpClient"/>.
+    /// Test for high level UPD api - <see cref="ReliableUdpServer"/> & <see cref="ReliableUdpClient"/>.
     /// </summary>
     public class HighLevelUdpTests : IDisposable
     {
-        private const uint TIMEOUT = ReliableUdpListener.HEARTBEAT_TIMEOUT_MS + 200;
+        private const uint TIMEOUT = ReliableUdpServer.HEARTBEAT_TIMEOUT_MS + 200;
 
-        private readonly ReliableUdpListener _server;
+        private readonly ReliableUdpServer _server;
         private readonly ReliableUdpClient[] _clients = new ReliableUdpClient[8];
         private readonly HashSet<string> _unexpectedClientActions = new();
 
         public HighLevelUdpTests()
         {
-            _server = new ReliableUdpListener(maxConnections: 16, port: 0, protocolKey: 0);
+            _server = new ReliableUdpServer(maxConnections: 16, port: 0, protocolKey: 0);
             _server.UnexpectedClientAction += (_, s) =>
                 _unexpectedClientActions.Add(s);
 

@@ -6,9 +6,9 @@ namespace Keel.Networking.Tests
 {
     public class MtuTests : IDisposable
     {
-        private const uint TIMEOUT = ReliableUdpListener.HEARTBEAT_TIMEOUT_MS + 200;
+        private const uint TIMEOUT = ReliableUdpServer.HEARTBEAT_TIMEOUT_MS + 200;
 
-        private readonly ReliableUdpListener _server = new(maxConnections: 16, port: 0, protocolKey: 0);
+        private readonly ReliableUdpServer _server = new(maxConnections: 16, port: 0, protocolKey: 0);
         private readonly ReliableUdpClient _client = new();
 
         public void Dispose()

@@ -23,7 +23,7 @@ namespace Keel.Networking.Udp.LowLevel
         /// below, a fixed number of attempts would mean a give up window that silently moves whenever those
         /// delays are returned.
         ///
-        /// This is also the source for <see cref="ReliableUdpListener.HEARTBEAT_TIMEOUT_MS"/> - there is no
+        /// This is also the source for <see cref="ReliableUdpServer.HEARTBEAT_TIMEOUT_MS"/> - there is no
         /// point retransmitting for longer than the connection above would survive without a heartbeat.
         /// </summary>
         public const uint MAX_RESEND_DURATION_MS = 2000;

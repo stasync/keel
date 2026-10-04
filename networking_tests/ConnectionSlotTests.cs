@@ -6,21 +6,21 @@ using System.Net;
 namespace Keel.Networking.Tests
 {
     /// <summary>
-    /// Covers how <see cref="ReliableUdpListener"/> classifies a client message whose connection slot
+    /// Covers how <see cref="ReliableUdpServer"/> classifies a client message whose connection slot
     /// does not resolve to a live session. Callers may ban the address on a single
-    /// <see cref="ReliableUdpListener.UnexpectedClientAction"/>, so the distinction matters.
+    /// <see cref="ReliableUdpServer.UnexpectedClientAction"/>, so the distinction matters.
     /// </summary>
     public class ConnectionSlotTests : IDisposable
     {
         private const int MAX_CONNECTIONS = 4;
 
-        private readonly ReliableUdpListener _server;
+        private readonly ReliableUdpServer _server;
         private readonly ReliableUdpClient _client = new();
         private readonly List<string> _unexpectedClientActions = new();
 
         public ConnectionSlotTests()
         {
-            _server = new ReliableUdpListener(MAX_CONNECTIONS, port: 0, protocolKey: 0);
+            _server = new ReliableUdpServer(MAX_CONNECTIONS, port: 0, protocolKey: 0);
             _server.UnexpectedClientAction += (_, action) =>
                 _unexpectedClientActions.Add(action);
         }
@@ -62,7 +62,7 @@ namespace Keel.Networking.Tests
             var connectionUid = _client.ConnectionUid;
             _server.RegisterIncomingPacketSimulator(new DropAllPacketsSimulator());
 
-            PumpUntil(() => !_server.HasConnection(connectionUid), ReliableUdpListener.HEARTBEAT_TIMEOUT_MS * 2);
+            PumpUntil(() => !_server.HasConnection(connectionUid), ReliableUdpServer.HEARTBEAT_TIMEOUT_MS * 2);
             Assert.False(_server.HasConnection(connectionUid));
 
             // Let the client's heartbeats reach the server again, now that the slot is gone.
@@ -85,7 +85,7 @@ namespace Keel.Networking.Tests
                 PacketMinDelayMs = 300
             });
 
-            PumpUntil(() => _client.IsConnected, ReliableUdpListener.HEARTBEAT_TIMEOUT_MS);
+            PumpUntil(() => _client.IsConnected, ReliableUdpServer.HEARTBEAT_TIMEOUT_MS);
 
             Assert.True(_client.IsConnected);
             Assert.Empty(_unexpectedClientActions);

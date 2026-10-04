@@ -13,20 +13,20 @@ namespace Keel.Networking.Tests
     ///
     /// The endpoint is deliberately not followed - doing so would let anyone knowing the connection uid,
     /// validation uid and slot redirect a session to their own address. Instead the datagram is reported
-    /// through <see cref="ReliableUdpListener.UnexpectedClientAction"/> and discarded.
+    /// through <see cref="ReliableUdpServer.UnexpectedClientAction"/> and discarded.
     /// </summary>
     public class EndPointChangeTests : IDisposable
     {
-        /// <summary>A single client on a fresh listener always lands in the first slot.</summary>
+        /// <summary>A single client on a fresh server always lands in the first slot.</summary>
         private const byte FIRST_SLOT = 0;
 
-        private readonly ReliableUdpListener _server;
+        private readonly ReliableUdpServer _server;
         private readonly ReliableUdpClient _client = new();
         private readonly List<string> _unexpectedClientActions = new();
 
         public EndPointChangeTests()
         {
-            _server = new ReliableUdpListener(maxConnections: 4, port: 0, protocolKey: 0);
+            _server = new ReliableUdpServer(maxConnections: 4, port: 0, protocolKey: 0);
             _server.UnexpectedClientAction += (_, action) =>
                 _unexpectedClientActions.Add(action);
         }
@@ -41,7 +41,7 @@ namespace Keel.Networking.Tests
         public void SessionArrivingFromANewEndpointIsReportedButNotFollowed()
         {
             _client.Connect(new IPEndPoint(IPAddress.Loopback, _server.Port));
-            PumpUntil(() => _client.IsConnected, ReliableUdpListener.HEARTBEAT_TIMEOUT_MS);
+            PumpUntil(() => _client.IsConnected, ReliableUdpServer.HEARTBEAT_TIMEOUT_MS);
             Assert.True(_client.IsConnected);
 
             var connectionUid = _client.ConnectionUid;
@@ -53,7 +53,7 @@ namespace Keel.Networking.Tests
             using var movedClient = new UdpFullProtocol(port: 0, protocolKey: 0);
             var writer = new NetWriter();
             writer.SeekZero();
-            writer.WriteByte((byte)ReliableUdpListener.ClientMessageCodes.Heartbeat);
+            writer.WriteByte((byte)ReliableUdpServer.ClientMessageCodes.Heartbeat);
             writer.WritePackedUInt32(connectionUid);
             writer.WritePackedUInt32(_client.ValidationUid);
             writer.WriteByte(FIRST_SLOT);
@@ -81,14 +81,14 @@ namespace Keel.Networking.Tests
 
         /// <summary>
         /// A session that has not moved must never be reported - callers may ban an address on a single
-        /// <see cref="ReliableUdpListener.UnexpectedClientAction"/>, so a false positive here would drop a
+        /// <see cref="ReliableUdpServer.UnexpectedClientAction"/>, so a false positive here would drop a
         /// healthy client.
         /// </summary>
         [Fact]
         public void AStableSessionIsNeverReported()
         {
             _client.Connect(new IPEndPoint(IPAddress.Loopback, _server.Port));
-            PumpUntil(() => _client.IsConnected, ReliableUdpListener.HEARTBEAT_TIMEOUT_MS);
+            PumpUntil(() => _client.IsConnected, ReliableUdpServer.HEARTBEAT_TIMEOUT_MS);
             Assert.True(_client.IsConnected);
 
             Pump(millisecondsToRun: 800);

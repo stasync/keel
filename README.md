@@ -54,7 +54,7 @@ using System.Threading;
 using Keel.Networking.Udp;
 
 // Port 0 picks any free port; read it back from server.Port.
-var server = new ReliableUdpListener(maxConnections: 32, port: 7777, protocolKey: 0);
+var server = new ReliableUdpServer(maxConnections: 32, port: 7777, protocolKey: 0);
 
 server.Connected += (connectionUid, request) =>
     Console.WriteLine($"Client {connectionUid} connected from {request.EndPoint}");
@@ -138,7 +138,7 @@ A client can send a short string when it connects, such as a login token or a ga
 
 ```csharp
 // Server
-server.ValidateConnection += (in ReliableUdpListener.ConnectionRequest request) =>
+server.ValidateConnection += (in ReliableUdpServer.ConnectionRequest request) =>
     request.ConnectionData == "game-v1.4";
 
 // Client

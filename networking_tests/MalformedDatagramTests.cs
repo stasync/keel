@@ -8,10 +8,10 @@ namespace Keel.Networking.Tests
     /// A malformed datagram must never escape <see cref="ReliableUdpClient.Update"/>.
     /// Without the guard in ProcessData an unknown server message code throws out of Update(),
     /// so the client stops heartbeat, never runs its own timeout check, logs nothing,
-    /// and the server drops it once <see cref="ReliableUdpListener.HEARTBEAT_TIMEOUT_MS"/> elapses.
+    /// and the server drops it once <see cref="ReliableUdpServer.HEARTBEAT_TIMEOUT_MS"/> elapses.
     ///
     /// Uses a raw <see cref="UdpFullProtocol"/> as the server so the test can put arbitrary
-    /// bytes on the wire - <see cref="ReliableUdpListener"/> only ever sends well-formed messages.
+    /// bytes on the wire - <see cref="ReliableUdpServer"/> only ever sends well-formed messages.
     /// </summary>
     public class MalformedDatagramTests : IDisposable
     {
@@ -73,7 +73,7 @@ namespace Keel.Networking.Tests
         private void PumpUntilConnected()
         {
             var startTime = DateTime.UtcNow;
-            while (!_client.IsConnected && (DateTime.UtcNow - startTime).TotalMilliseconds < ReliableUdpListener.HEARTBEAT_TIMEOUT_MS)
+            while (!_client.IsConnected && (DateTime.UtcNow - startTime).TotalMilliseconds < ReliableUdpServer.HEARTBEAT_TIMEOUT_MS)
                 Tick();
         }
 
@@ -105,12 +105,12 @@ namespace Keel.Networking.Tests
                 _clientEndPoint = incomingData.EndPoint;
 
                 _reader.Replace(incomingData.Buffer);
-                var messageCode = (ReliableUdpListener.ClientMessageCodes)_reader.ReadByte();
+                var messageCode = (ReliableUdpServer.ClientMessageCodes)_reader.ReadByte();
 
                 _writer.SeekZero();
                 switch (messageCode)
                 {
-                    case ReliableUdpListener.ClientMessageCodes.Connect:
+                    case ReliableUdpServer.ClientMessageCodes.Connect:
                         _writer.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.ConnectConfirmed);
                         _writer.WritePackedUInt32(CONNECTION_UID);
                         _writer.WritePackedUInt32(VALIDATION_UID);
@@ -118,7 +118,7 @@ namespace Keel.Networking.Tests
                         _fakeServer.SendTo(incomingData.EndPoint, _writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
                         break;
 
-                    case ReliableUdpListener.ClientMessageCodes.Heartbeat:
+                    case ReliableUdpServer.ClientMessageCodes.Heartbeat:
                         _writer.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Heartbeat);
                         _fakeServer.SendTo(incomingData.EndPoint, _writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
                         break;

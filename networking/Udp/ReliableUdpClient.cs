@@ -17,7 +17,7 @@ namespace Keel.Networking.Udp
             public readonly uint ValidationUid;
             public readonly byte Slot;
             public DateTime LastHeartbeatReceiveTime { get; internal set; }
-            public DateTime LastHeatBeatSentTime { get; internal set; }
+            public DateTime LastHeartbeatSentTime { get; internal set; }
 
             public ConnectionState(IPEndPoint connectionEndPoint, uint connectionUid, uint validationUid, byte slot)
             {
@@ -82,7 +82,7 @@ namespace Keel.Networking.Udp
             _protocol = new UdpFullProtocol(port: 0, protocolKey: 0);
 
             _dataWriter.SeekZero();
-            _dataWriter.WriteByte((byte)ReliableUdpListener.ClientMessageCodes.Connect);
+            _dataWriter.WriteByte((byte)ReliableUdpServer.ClientMessageCodes.Connect);
             _dataWriter.WriteString(connectionData);
             _protocol.SendTo(endPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
             _connectionStartTime = DateTime.UtcNow;
@@ -99,7 +99,7 @@ namespace Keel.Networking.Udp
             }
 
             _dataWriter.SeekZero();
-            _dataWriter.WriteByte((byte)ReliableUdpListener.ClientMessageCodes.Data);
+            _dataWriter.WriteByte((byte)ReliableUdpServer.ClientMessageCodes.Data);
             _dataWriter.WritePackedUInt32(_connectionState.ConnectionUid);
             _dataWriter.WritePackedUInt32(_connectionState.ValidationUid);
             _dataWriter.WriteByte(_connectionState.Slot);
@@ -127,7 +127,7 @@ namespace Keel.Networking.Udp
             }
             else
             {
-                if ((DateTime.UtcNow - _connectionStartTime).TotalMilliseconds > ReliableUdpListener.HEARTBEAT_TIMEOUT_MS)
+                if ((DateTime.UtcNow - _connectionStartTime).TotalMilliseconds > ReliableUdpServer.HEARTBEAT_TIMEOUT_MS)
                 {
                     ConnectionFailed();
                     Disconnect();
@@ -138,13 +138,13 @@ namespace Keel.Networking.Udp
         private void TrySendHeartbeat()
         {
             // Send 10 times per second.
-            if ((DateTime.UtcNow - _connectionState.LastHeatBeatSentTime).TotalMilliseconds < HEARTBEAT_SEND_TIMEOUT_MS)
+            if ((DateTime.UtcNow - _connectionState.LastHeartbeatSentTime).TotalMilliseconds < HEARTBEAT_SEND_TIMEOUT_MS)
                 return;
 
-            _connectionState.LastHeatBeatSentTime = DateTime.UtcNow;
+            _connectionState.LastHeartbeatSentTime = DateTime.UtcNow;
 
             _dataWriter.SeekZero();
-            _dataWriter.WriteByte((byte)ReliableUdpListener.ClientMessageCodes.Heartbeat);
+            _dataWriter.WriteByte((byte)ReliableUdpServer.ClientMessageCodes.Heartbeat);
             _dataWriter.WritePackedUInt32(_connectionState.ConnectionUid);
             _dataWriter.WritePackedUInt32(_connectionState.ValidationUid);
             _dataWriter.WriteByte(_connectionState.Slot);
@@ -161,7 +161,7 @@ namespace Keel.Networking.Udp
         private void UpdateHeartbeat()
         {
             var currentDelta = DateTime.UtcNow - _connectionState.LastHeartbeatReceiveTime;
-            if (currentDelta.TotalMilliseconds < ReliableUdpListener.HEARTBEAT_TIMEOUT_MS)
+            if (currentDelta.TotalMilliseconds < ReliableUdpServer.HEARTBEAT_TIMEOUT_MS)
                 return;
 
             Keel.Utils.Debug.Logger.LogError($"[{GetType().FullName}] UpdateHeartbeat error: {currentDelta.TotalMilliseconds}ms");
@@ -170,7 +170,7 @@ namespace Keel.Networking.Udp
 
         private void ProcessData(in IncomingDataSnapshot incomingDataSnapshot)
         {
-            // As we process incoming data, we should always be ready that it might in some incorrect format.
+            // As we process incoming data, we should always be ready that it might be in an incorrect format.
             // NOTE: a malformed datagram must never escape Update(), otherwise the client stops updating
             // entirely: it stops heart beating, never runs its own timeout check, logs nothing, and the
             // server drops it once HEARTBEAT_TIMEOUT_MS elapses.
@@ -199,7 +199,7 @@ namespace Keel.Networking.Udp
                     _connectionState = new ConnectionState(incomingDataSnapshot.EndPoint, connectionUid, validationUid, slot)
                     {
                         LastHeartbeatReceiveTime = DateTime.UtcNow,
-                        LastHeatBeatSentTime = DateTime.UtcNow
+                        LastHeartbeatSentTime = DateTime.UtcNow
                     };
 
                     Connected();

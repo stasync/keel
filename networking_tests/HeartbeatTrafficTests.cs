@@ -30,7 +30,7 @@ namespace Keel.Networking.Tests
 
         private readonly ITestOutputHelper _output;
 
-        private readonly ReliableUdpListener _server;
+        private readonly ReliableUdpServer _server;
         private readonly ReliableUdpClient _client = new();
         private readonly DataTransferAmountCaptureLayer _serverCapture = new();
         private readonly DataTransferAmountCaptureLayer _clientCapture = new();
@@ -41,7 +41,7 @@ namespace Keel.Networking.Tests
         {
             _output = output;
 
-            _server = new ReliableUdpListener(maxConnections: 4, port: 0, protocolKey: 0);
+            _server = new ReliableUdpServer(maxConnections: 4, port: 0, protocolKey: 0);
             _server.RegisterDataTransferLayer(_serverCapture);
 
             _client.HeartbeatSent += () => _heartbeatsSent++;
@@ -134,7 +134,7 @@ namespace Keel.Networking.Tests
             _client.RegisterDataTransferLayer(_clientCapture);
             configure(_client);
 
-            PumpUntil(() => _client.IsConnected, ReliableUdpListener.HEARTBEAT_TIMEOUT_MS);
+            PumpUntil(() => _client.IsConnected, ReliableUdpServer.HEARTBEAT_TIMEOUT_MS);
             Assert.True(_client.IsConnected, "Client failed to connect.");
         }
 
