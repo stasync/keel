@@ -41,6 +41,9 @@ namespace Keel.Utils.Threading
             }
         }
 
+        // Writes straight to the console and a file instead of going through Logger:
+        // Logger output is queued and written by LogWorker, so a stall warning could
+        // sit in that queue (or be lost if the process dies) during the very stall it reports.
         private void WriteLogToFile(string stringToWrite)
         {
             stringToWrite = $"[{DateTime.UtcNow}] {stringToWrite}";
