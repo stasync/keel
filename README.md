@@ -414,17 +414,19 @@ Values can also come from files placed next to the executable. A file named `por
 ```csharp
 using Keel.Utils.Security;
 
-var encrypted = EncryptionUtility.Encrypt("secret message", "my-password");
-var decrypted = EncryptionUtility.Decrypt(encrypted, "my-password");
+var secret = "6f9b2c1e-4d7a-4e8b-9a3f-1c5d7e9b2a40"; // a long random value, not a password
+var encrypted = EncryptionUtility.Encrypt("secret message", secret);
+var decrypted = EncryptionUtility.Decrypt(encrypted, secret);
 ```
 
-This uses AES-256. The result is a plain string, so it's easy to store or send.
+This uses AES-256 with an HMAC-SHA256 integrity check, so `Decrypt` throws if the data was modified or the secret is wrong. The result is a plain string, so it's easy to store or send.
+
+The secret is hashed straight into a key, without a slow password hash, so use a long random value such as a GUID rather than something a person would pick.
 
 ### Other helpers
 
 - `RandomExtended` generates random numbers, strings and IDs, and shuffles collections.
 - `UidProvider` hands out increasing unique numbers.
-- `Command` starts processes and runs shell commands.
 - `Types` and `TypeAttributeLookup<T>` find types across the loaded assemblies, for example every class that implements an interface or carries an attribute.
 - `DomainUtils` tells you the current platform and the application directory.
 
@@ -432,6 +434,7 @@ This uses AES-256. The result is a plain string, so it's easy to store or send.
 
 ```
 utils/                        shared helpers used by the other two libraries
+utils_tests/
 networking/                   UDP client, server and serialization
 networking_tests/
 dependency_injection/         container, scopes and events
@@ -442,11 +445,12 @@ build.sh                      builds, tests and packages everything
 ## Running the tests
 
 ```bash
+dotnet test utils_tests
 dotnet test networking_tests
 dotnet test dependency_injection_tests
 ```
 
-`build.sh` runs both suites as part of the full build.
+`build.sh` runs all three suites as part of the full build.
 
 ## License
 

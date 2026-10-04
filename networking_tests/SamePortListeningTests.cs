@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 namespace Keel.Networking.Tests
 {
-    public class SamePortListenerTests
+    public class SamePortListeningTests
     {
         [Fact]
         public void TcpAndUdp_CanListenOnSamePort()
