@@ -424,7 +424,6 @@ This uses AES-256. The result is a plain string, so it's easy to store or send.
 
 - `RandomExtended` generates random numbers, strings and IDs, and shuffles collections.
 - `UidProvider` hands out increasing unique numbers.
-- `Command` starts processes and runs shell commands.
 - `Types` and `TypeAttributeLookup<T>` find types across the loaded assemblies, for example every class that implements an interface or carries an attribute.
 - `DomainUtils` tells you the current platform and the application directory.
 
