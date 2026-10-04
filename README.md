@@ -431,6 +431,7 @@ This uses AES-256. The result is a plain string, so it's easy to store or send.
 
 ```
 utils/                        shared helpers used by the other two libraries
+utils_tests/
 networking/                   UDP client, server and serialization
 networking_tests/
 dependency_injection/         container, scopes and events
@@ -441,11 +442,12 @@ build.sh                      builds, tests and packages everything
 ## Running the tests
 
 ```bash
+dotnet test utils_tests
 dotnet test networking_tests
 dotnet test dependency_injection_tests
 ```
 
-`build.sh` runs both suites as part of the full build.
+`build.sh` runs all three suites as part of the full build.
 
 ## License
 

@@ -14,6 +14,7 @@ DOTNET_ARTIFACTS_DIR="artifacts"
 UTILS_PROJ="utils/utils.csproj"
 NETWORKING_PROJ="networking/networking.csproj"
 DI_PROJ="dependency_injection/dependency_injection.csproj"
+UTILS_TESTS_PROJ="utils_tests/utils_tests.csproj"
 DI_TESTS_PROJ="dependency_injection_tests/dependency_injection_tests.csproj"
 NETWORKING_TESTS_PROJ="networking_tests/networking_tests.csproj"
 
@@ -26,6 +27,7 @@ stage_build() {
     dotnet clean $UTILS_PROJ
     dotnet clean $NETWORKING_PROJ
     dotnet clean $DI_PROJ
+    dotnet clean $UTILS_TESTS_PROJ
     dotnet clean $DI_TESTS_PROJ
     dotnet clean $NETWORKING_TESTS_PROJ
 
@@ -35,6 +37,7 @@ stage_build() {
 }
 
 stage_test() {
+    dotnet test $UTILS_TESTS_PROJ
     dotnet test $DI_TESTS_PROJ
     dotnet test $NETWORKING_TESTS_PROJ
 }
