@@ -1,9 +1,9 @@
-﻿using Core.Networking.Udp.LowLevel;
+﻿using Keel.Networking.Udp.LowLevel;
 using System;
 using System.Net;
 using System.Runtime.CompilerServices;
 
-namespace Core.Networking.Udp
+namespace Keel.Networking.Udp
 {
     /// <summary>
     ///  A high level client based on <see cref="UdpFullProtocol"/>.
@@ -68,13 +68,13 @@ namespace Core.Networking.Udp
             if (_connectionState != null)
             {
                 // Already connected.
-                Core.Utils.Debug.Logger.LogError("Already connected.");
+                Keel.Utils.Debug.Logger.LogError("Already connected.");
                 return;
             }
 
             if (_protocol != null)
             {
-                Core.Utils.Debug.Logger.LogError("Already connecting.");
+                Keel.Utils.Debug.Logger.LogError("Already connecting.");
                 return;
             }
 
@@ -94,7 +94,7 @@ namespace Core.Networking.Udp
 
             if (!IsConnected)
             {
-                Core.Utils.Debug.Logger.LogError("Unable to send data: not connected yet.");
+                Keel.Utils.Debug.Logger.LogError("Unable to send data: not connected yet.");
                 return;
             }
 
@@ -164,7 +164,7 @@ namespace Core.Networking.Udp
             if (currentDelta.TotalMilliseconds < ReliableUdpListener.HEARTBEAT_TIMEOUT_MS)
                 return;
 
-            Core.Utils.Debug.Logger.LogError($"[{GetType().FullName}] UpdateHeartbeat error: {currentDelta.TotalMilliseconds}ms");
+            Keel.Utils.Debug.Logger.LogError($"[{GetType().FullName}] UpdateHeartbeat error: {currentDelta.TotalMilliseconds}ms");
             Disconnect();
         }
 
@@ -181,7 +181,7 @@ namespace Core.Networking.Udp
             catch (Exception e)
             {
                 // Discard the offending datagram and keep the update loop alive.
-                Core.Utils.Debug.Logger.LogError($"[{GetType().FullName}] MALFORMED DATAGRAM from '{incomingDataSnapshot.EndPoint}' discarded: {e.Message}");
+                Keel.Utils.Debug.Logger.LogError($"[{GetType().FullName}] MALFORMED DATAGRAM from '{incomingDataSnapshot.EndPoint}' discarded: {e.Message}");
             }
         }
 

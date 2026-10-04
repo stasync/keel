@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Core.Networking
+namespace Keel.Networking
 {
     public sealed class NetReader
     {

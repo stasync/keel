@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.DependencyInjection.Events
+namespace Keel.DependencyInjection.Events
 {
     [DefaultImplementation(typeof(Broadcaster))]
     public interface IBroadcaster

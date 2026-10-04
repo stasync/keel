@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.Utils.Debug
+namespace Keel.Utils.Debug
 {
     public interface ILogOutput
     {

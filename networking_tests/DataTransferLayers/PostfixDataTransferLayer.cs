@@ -1,7 +1,7 @@
-﻿using Core.Networking.Udp.LowLevel;
+﻿using Keel.Networking.Udp.LowLevel;
 using System.Net;
 
-namespace Core.Networking.Tests.DataTransferLayers
+namespace Keel.Networking.Tests.DataTransferLayers
 {
     /// <summary>
     /// A data transfer layer that adds prefix in font of the message.

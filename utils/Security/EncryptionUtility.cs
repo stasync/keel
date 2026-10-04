@@ -3,7 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Core.Utils.Security
+namespace Keel.Utils.Security
 {
     /// <summary>
     /// AES-256-CBC encryption utility.

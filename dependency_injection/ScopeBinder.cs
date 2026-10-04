@@ -1,9 +1,9 @@
-using Core.DependencyInjection.Factories;
-using Core.DependencyInjection.Factories.Internal;
+using Keel.DependencyInjection.Factories;
+using Keel.DependencyInjection.Factories.Internal;
 using System;
 using System.Collections.Generic;
 
-namespace Core.DependencyInjection
+namespace Keel.DependencyInjection
 {
     public sealed class ScopeBinder
     {

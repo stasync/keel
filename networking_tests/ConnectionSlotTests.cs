@@ -1,9 +1,9 @@
-﻿using Core.Networking.Udp;
-using Core.Networking.Udp.LowLevel;
-using Core.Networking.Udp.LowLevel.Simulators;
+﻿using Keel.Networking.Udp;
+using Keel.Networking.Udp.LowLevel;
+using Keel.Networking.Udp.LowLevel.Simulators;
 using System.Net;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     /// <summary>
     /// Covers how <see cref="ReliableUdpListener"/> classifies a client message whose connection slot

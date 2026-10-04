@@ -1,9 +1,9 @@
-﻿using Core.Utils.Debug;
+﻿using Keel.Utils.Debug;
 using System;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Core.Networking.Udp.LowLevel.Internal
+namespace Keel.Networking.Udp.LowLevel.Internal
 {
     internal static class UdpUtils
     {

@@ -1,9 +1,9 @@
-﻿using Core.Utils.Debug;
+﻿using Keel.Utils.Debug;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace Core.Utils
+namespace Keel.Utils
 {
     public static class CommandLine
     {

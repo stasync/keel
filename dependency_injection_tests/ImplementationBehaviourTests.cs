@@ -1,5 +1,5 @@
 ﻿#pragma warning disable CS0169 // Field is never used
-namespace Core.DependencyInjection.Tests
+namespace Keel.DependencyInjection.Tests
 {
     public class ImplementationBehaviourTests
     {

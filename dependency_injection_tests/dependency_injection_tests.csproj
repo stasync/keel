@@ -4,7 +4,8 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
-        <RootNamespace>Core.DependencyInjection.Tests</RootNamespace>
+        <RootNamespace>Keel.DependencyInjection.Tests</RootNamespace>
+        <AssemblyName>Keel.DependencyInjection.Tests</AssemblyName>
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
         <LangVersion>14</LangVersion>
     </PropertyGroup>

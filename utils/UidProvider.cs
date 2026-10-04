@@ -1,4 +1,4 @@
-﻿namespace Core.Utils
+﻿namespace Keel.Utils
 {
     public sealed class UidProvider
     {

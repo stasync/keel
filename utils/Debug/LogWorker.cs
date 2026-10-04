@@ -1,11 +1,11 @@
-﻿using Core.Utils.Threading;
+﻿using Keel.Utils.Threading;
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
 
-namespace Core.Utils.Debug
+namespace Keel.Utils.Debug
 {
     public sealed class LogWorker : Worker, ILogOutput
     {

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Net;
 
-namespace Core.Networking.Udp.LowLevel.Simulators
+namespace Keel.Networking.Udp.LowLevel.Simulators
 {
     /// <summary>
     /// All packets will be lost, if this simulator is registered.

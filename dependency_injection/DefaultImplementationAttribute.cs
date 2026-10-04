@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.DependencyInjection
+namespace Keel.DependencyInjection
 {
     [AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class, Inherited = false)]
     public class DefaultImplementationAttribute : Attribute

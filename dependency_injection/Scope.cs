@@ -1,11 +1,11 @@
-using Core.DependencyInjection.Diagnostics;
-using Core.DependencyInjection.Interface;
-using Core.DependencyInjection.Internal;
+using Keel.DependencyInjection.Diagnostics;
+using Keel.DependencyInjection.Interface;
+using Keel.DependencyInjection.Internal;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Core.DependencyInjection
+namespace Keel.DependencyInjection
 {
     public class Scope : IDisposable, IEnumerable<Scope>
     {

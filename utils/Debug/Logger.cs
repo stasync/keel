@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-namespace Core.Utils.Debug
+namespace Keel.Utils.Debug
 {
     public static class Logger
     {

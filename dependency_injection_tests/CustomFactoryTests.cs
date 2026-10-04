@@ -1,6 +1,6 @@
-﻿using Core.DependencyInjection.Factories;
+﻿using Keel.DependencyInjection.Factories;
 
-namespace Core.DependencyInjection.Tests
+namespace Keel.DependencyInjection.Tests
 {
     public class CustomFactoryTests
     {

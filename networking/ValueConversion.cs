@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Core.Networking
+namespace Keel.Networking
 {
     internal static class ValueConversion
     {

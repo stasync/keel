@@ -1,8 +1,8 @@
-﻿using Core.Networking.Udp;
-using Core.Networking.Udp.LowLevel;
+﻿using Keel.Networking.Udp;
+using Keel.Networking.Udp.LowLevel;
 using System.Net;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     /// <summary>
     /// A malformed datagram must never escape <see cref="ReliableUdpClient.Update"/>.

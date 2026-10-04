@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace Core.DependencyInjection.Internal
+namespace Keel.DependencyInjection.Internal
 {
     internal static class InjectionTargetsCache
     {

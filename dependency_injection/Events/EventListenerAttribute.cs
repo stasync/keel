@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.DependencyInjection.Events
+namespace Keel.DependencyInjection.Events
 {
     [AttributeUsage(AttributeTargets.Method)]
     public class EventListenerAttribute : Attribute

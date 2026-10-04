@@ -1,13 +1,13 @@
-﻿using Core.Networking.Udp.LowLevel;
-using Core.Utils;
-using Core.Utils.Debug;
+﻿using Keel.Networking.Udp.LowLevel;
+using Keel.Utils;
+using Keel.Utils.Debug;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
-namespace Core.Networking.Udp
+namespace Keel.Networking.Udp
 {
     /// <summary>
     /// A high level listener based on <see cref="UdpFullProtocol"/>.

@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
-namespace Core.Networking
+namespace Keel.Networking
 {
     public static class Utils
     {

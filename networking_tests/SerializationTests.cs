@@ -1,4 +1,4 @@
-﻿namespace Core.Networking.Tests
+﻿namespace Keel.Networking.Tests
 {
     public class SerializationTests
     {

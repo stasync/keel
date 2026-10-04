@@ -1,6 +1,6 @@
-using Core.DependencyInjection.Internal;
+using Keel.DependencyInjection.Internal;
 
-namespace Core.DependencyInjection
+namespace Keel.DependencyInjection
 {
     public class RootScope : Scope
     {

@@ -1,10 +1,10 @@
-﻿using Core.Networking.Udp;
-using Core.Networking.Udp.LowLevel.DataTransferLayers;
-using Core.Networking.Udp.LowLevel.Simulators;
+﻿using Keel.Networking.Udp;
+using Keel.Networking.Udp.LowLevel.DataTransferLayers;
+using Keel.Networking.Udp.LowLevel.Simulators;
 using System.Net;
 using Xunit.Abstractions;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     /// <summary>
     /// Heartbeats are periodic, so they must not be sent reliably.

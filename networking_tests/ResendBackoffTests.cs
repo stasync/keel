@@ -1,8 +1,8 @@
-﻿using Core.Networking.Udp.LowLevel;
+﻿using Keel.Networking.Udp.LowLevel;
 using System.Net;
 using Xunit.Abstractions;
 
-namespace Core.Networking.Tests
+namespace Keel.Networking.Tests
 {
     /// <summary>
     /// An unacked reliable datagram used to be retransmitted on every single Poll tick, so the cost of one

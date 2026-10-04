@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Buffers;
 
-namespace Core.Networking.Udp.LowLevel.Internal
+namespace Keel.Networking.Udp.LowLevel.Internal
 {
     /// <summary>
     /// This class is thread-safe (based on <see cref="ArrayPool{Byte}"/>). All members may be used by multiple threads concurrently.

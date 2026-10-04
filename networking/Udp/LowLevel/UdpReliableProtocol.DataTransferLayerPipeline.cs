@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Runtime.CompilerServices;
 
-namespace Core.Networking.Udp.LowLevel
+namespace Keel.Networking.Udp.LowLevel
 {
     public sealed partial class UdpReliableProtocol
     {

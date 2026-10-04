@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace Core.Utils
+namespace Keel.Utils
 {
     public static class Types
     {

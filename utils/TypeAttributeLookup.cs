@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Core.Utils
+namespace Keel.Utils
 {
     public static class TypeAttributeLookup<TAttribute> where TAttribute : Attribute
     {

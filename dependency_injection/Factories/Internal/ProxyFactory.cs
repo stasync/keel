@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Core.DependencyInjection.Factories.Internal
+namespace Keel.DependencyInjection.Factories.Internal
 {
     internal sealed class ProxyFactory<TImplementation> : InstanceFactory where TImplementation : class
     {

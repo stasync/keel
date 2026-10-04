@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Core.DependencyInjection.Internal
+namespace Keel.DependencyInjection.Internal
 {
     internal sealed class DependencyResolvingContext : IDisposable
     {
