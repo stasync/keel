@@ -414,11 +414,14 @@ Values can also come from files placed next to the executable. A file named `por
 ```csharp
 using Keel.Utils.Security;
 
-var encrypted = EncryptionUtility.Encrypt("secret message", "my-password");
-var decrypted = EncryptionUtility.Decrypt(encrypted, "my-password");
+var secret = "6f9b2c1e-4d7a-4e8b-9a3f-1c5d7e9b2a40"; // a long random value, not a password
+var encrypted = EncryptionUtility.Encrypt("secret message", secret);
+var decrypted = EncryptionUtility.Decrypt(encrypted, secret);
 ```
 
-This uses AES-256. The result is a plain string, so it's easy to store or send.
+This uses AES-256 with an HMAC-SHA256 integrity check, so `Decrypt` throws if the data was modified or the secret is wrong. The result is a plain string, so it's easy to store or send.
+
+The secret is hashed straight into a key, without a slow password hash, so use a long random value such as a GUID rather than something a person would pick.
 
 ### Other helpers
 

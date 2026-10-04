@@ -1,5 +1,6 @@
 ﻿using Keel.Utils.Math;
 using Keel.Utils.Security;
+using System.Security.Cryptography;
 using Xunit.Abstractions;
 
 namespace Keel.Utils.Tests
@@ -32,8 +33,8 @@ namespace Keel.Utils.Tests
         }
 
         /// <summary>
-        /// Documents current behaviour: a tampered IV is not detected, Decrypt succeeds and returns different text.
-        /// Once Decrypt verifies integrity, this should expect an exception instead.
+        /// Changing the IV used to go unnoticed: Decrypt succeeded and returned different text.
+        /// The MAC check now rejects it.
         /// </summary>
         [Fact]
         public void IncorrectTokenTest()
@@ -57,9 +58,7 @@ namespace Keel.Utils.Tests
             var changedEncrypted = new string(encryptedCharArray);
             output.WriteLine(changedEncrypted);
 
-            var decrypted = EncryptionUtility.Decrypt(changedEncrypted, secret: key);
-            output.WriteLine(decrypted);
-            Assert.NotEqual(message, decrypted);
+            Assert.Throws<CryptographicException>(() => EncryptionUtility.Decrypt(changedEncrypted, secret: key));
         }
 
         [Fact]
@@ -241,6 +240,120 @@ namespace Keel.Utils.Tests
             // Cross-decryption should fail
             Assert.ThrowsAny<Exception>(() => EncryptionUtility.Decrypt(encrypted1, secret: key2));
             Assert.ThrowsAny<Exception>(() => EncryptionUtility.Decrypt(encrypted2, secret: key1));
+        }
+
+        [Fact]
+        public void FormatTest()
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            var encrypted = EncryptionUtility.Encrypt(data: "Hello World!", secret: key);
+            output.WriteLine(encrypted);
+
+            var parts = encrypted.Split(':');
+            Assert.Equal(3, parts.Length);
+            Assert.Equal(16, Convert.FromBase64String(parts[0]).Length); // IV
+            Assert.Equal(32, Convert.FromBase64String(parts[2]).Length); // HMAC-SHA256
+        }
+
+        /// <summary>
+        /// The attack the MAC exists to stop: relay tokens start with {"TargetPort":90, and XOR-ing the IV rewrites
+        /// those bytes without knowing the key. Before the integrity check, this turned port 9000 into 7700.
+        /// </summary>
+        [Fact]
+        public void ForgedTokenTest()
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            const string message = "{\"TargetPort\":9000,\"IssueUnixTime\":1737374096789,\"ExpirationUnixTime\":1737374126789}";
+            var encrypted = EncryptionUtility.Encrypt(data: message, secret: key);
+
+            var parts = encrypted.Split(':');
+            var iv = Convert.FromBase64String(parts[0]);
+            iv[14] ^= (byte)('9' ^ '7');
+            iv[15] ^= (byte)('0' ^ '7');
+            var forged = $"{Convert.ToBase64String(iv)}:{parts[1]}:{parts[2]}";
+            output.WriteLine(forged);
+
+            Assert.Throws<CryptographicException>(() => EncryptionUtility.Decrypt(forged, secret: key));
+        }
+
+        [Theory]
+        [InlineData(0)] // IV
+        [InlineData(1)] // Ciphertext
+        [InlineData(2)] // MAC
+        public void FlippedBitTest(int partIndex)
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            var encrypted = EncryptionUtility.Encrypt(data: "Hello World!", secret: key);
+
+            var parts = encrypted.Split(':');
+            var bytes = Convert.FromBase64String(parts[partIndex]);
+            bytes[^1] ^= 1;
+            parts[partIndex] = Convert.ToBase64String(bytes);
+            var tampered = string.Join(":", parts);
+            output.WriteLine(tampered);
+
+            Assert.Throws<CryptographicException>(() => EncryptionUtility.Decrypt(tampered, secret: key));
+        }
+
+        /// <summary>
+        /// Without a MAC, about 1 in 300 wrong keys happened to produce valid padding and "decrypted" to garbage.
+        /// </summary>
+        [Fact]
+        public void WrongKeyAlwaysFailsTest()
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            var encrypted = EncryptionUtility.Encrypt(data: "Hello World!", secret: key);
+
+            for (var i = 0; i < 1000; i++)
+            {
+                var wrongKey = $"wrong-key-{i:D4}";
+                Assert.Throws<CryptographicException>(() => EncryptionUtility.Decrypt(encrypted, secret: wrongKey));
+            }
+        }
+
+        /// <summary>
+        /// Base64 decoding ignores whitespace, so a respaced copy of a token would decrypt to the same content while
+        /// being a different string - enough to get past a "token already used" check that compares strings.
+        /// </summary>
+        [Fact]
+        public void WhitespaceInsertedTest()
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            var encrypted = EncryptionUtility.Encrypt(data: "Hello World!", secret: key);
+
+            var respaced = encrypted.Replace(":", ": ");
+            output.WriteLine(respaced);
+
+            Assert.Throws<ArgumentException>(() => EncryptionUtility.Decrypt(respaced, secret: key));
+        }
+
+        /// <summary>
+        /// Tokens in the old "iv:ciphertext" format have no MAC, so they can't be trusted and are rejected.
+        /// </summary>
+        [Fact]
+        public void LegacyFormatTest()
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            var encrypted = EncryptionUtility.Encrypt(data: "Hello World!", secret: key);
+
+            var parts = encrypted.Split(':');
+            var legacy = $"{parts[0]}:{parts[1]}";
+
+            Assert.Throws<ArgumentException>(() => EncryptionUtility.Decrypt(legacy, secret: key));
+        }
+
+        /// <summary>
+        /// Token produced by encrypt() in lro_server's crypto_utils.ts. If this fails, the two implementations have
+        /// drifted apart and the relay will reject every token the Node service issues.
+        /// </summary>
+        [Fact]
+        public void CryptoUtilsTsTokenTest()
+        {
+            const string key = "XLtb9sJhNltZl6JlbHliS66eXhD42Fs3";
+            const string token = "ZO8VHk7/Z7CPeBMbxEe3kg==:HVCY1Vnq/YETuG4TD8tqmZ988xGUYwLL8yz4/ctE8TmSRW2YKwNp4ajbqFNjjEseNeveI3llhmBAdPzDm/3sWe+8FL9MaI29uUXEK8nAqossKsQF961ZqkVKlA0R0+WU:qY117npdx1dJmWMwa0kCaRdJBpx8DYrP+lB1VaBAhJg=";
+            const string message = "{\"TargetPort\":9000,\"IssueUnixTime\":1737374096789,\"ExpirationUnixTime\":1737374126789}";
+
+            Assert.Equal(message, EncryptionUtility.Decrypt(token, secret: key));
         }
     }
 }
