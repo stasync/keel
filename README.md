@@ -390,7 +390,7 @@ autoSave.Stop();
 
 `OnStart` and `OnStop` can be overridden as well. `WorkerWatchDog` can watch the other workers and warn when one of them stalls.
 
-### Command-line settings
+### Launch arguments
 
 Mark fields with `[InjectCommandArgument]` and they are filled from the command line.
 
@@ -404,7 +404,7 @@ public sealed class ServerSettings
 }
 
 // MyServer -port 9000 -maxPlayers 64
-var settings = CommandLine.CreateInstance<ServerSettings>();
+var settings = LaunchArguments.CreateInstance<ServerSettings>();
 ```
 
 Values can also come from files placed next to the executable. A file named `port.cmdparam` that contains `9000` has the same effect as passing `-port 9000`.

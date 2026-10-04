@@ -5,15 +5,15 @@ using System.Reflection;
 
 namespace Keel.Utils
 {
-    public static class CommandLine
+    public static class LaunchArguments
     {
         public static readonly string Raw;
-        private static readonly Dictionary<string, List<string>> s_commandLineArguments;
+        private static readonly Dictionary<string, List<string>> s_arguments;
 
-        static CommandLine()
+        static LaunchArguments()
         {
             Raw = Environment.CommandLine;
-            s_commandLineArguments = ParseCommandLineArguments(Raw);
+            s_arguments = Parse(Raw);
 
             // Looking for config files.
             // File name - argument name.
@@ -24,30 +24,30 @@ namespace Keel.Utils
                 var fileName = System.IO.Path.GetFileNameWithoutExtension(configFilePath).Trim();
                 var value = System.IO.File.ReadAllText(configFilePath).Trim();
 
-                if (!s_commandLineArguments.TryGetValue(fileName, out var arguments))
-                    s_commandLineArguments.Add(fileName, arguments = new List<string>());
+                if (!s_arguments.TryGetValue(fileName, out var arguments))
+                    s_arguments.Add(fileName, arguments = new List<string>());
 
                 arguments.Add(value);
             }
         }
 
         public static T CreateInstance<T>() =>
-            CreateFromCommandLineData<T>(s_commandLineArguments);
+            CreateInstance<T>(s_arguments);
 
-        public static T CreateFromCommandLineData<T>(Dictionary<string, List<string>> commandLineArguments)
+        public static T CreateInstance<T>(Dictionary<string, List<string>> arguments)
         {
             var instance = Activator.CreateInstance<T>();
-            InjectCommandLineData(ref instance, commandLineArguments);
+            InjectTo(ref instance, arguments);
             return instance;
         }
 
         public static void InjectTo<T>(ref T target) where T : struct =>
-            InjectCommandLineData(ref target, s_commandLineArguments);
+            InjectTo(ref target, s_arguments);
 
         public static void InjectTo<T>(T target) where T : class =>
-            InjectCommandLineData(ref target, s_commandLineArguments);
+            InjectTo(ref target, s_arguments);
 
-        public static void InjectCommandLineData<T>(ref T target, Dictionary<string, List<string>> commandLineArguments)
+        public static void InjectTo<T>(ref T target, Dictionary<string, List<string>> arguments)
         {
             var objectToInject = target as object;
 
@@ -60,7 +60,7 @@ namespace Keel.Utils
                 var argumentToInject =
                     string.IsNullOrWhiteSpace(argumentAttribute.ArgumentName) ? field.Name : argumentAttribute.ArgumentName;
 
-                if (!commandLineArguments.TryGetValue(argumentToInject, out var parameterList))
+                if (!arguments.TryGetValue(argumentToInject, out var parameterList))
                     continue;
 
                 // Field is an array.
@@ -204,13 +204,13 @@ namespace Keel.Utils
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Exception was thrown while injecting the command line arguments: '{ex.Message}'.");
+                Logger.LogError($"Exception was thrown while injecting the launch arguments: '{ex.Message}'.");
             }
 
             return false;
         }
 
-        public static Dictionary<string, List<string>> ParseCommandLineArguments(string commandLine)
+        public static Dictionary<string, List<string>> Parse(string commandLine)
         {
             // Remove quotes, in case command is written like "-myCommand 500" for some reason.
             commandLine = commandLine.Replace("\"", string.Empty);
