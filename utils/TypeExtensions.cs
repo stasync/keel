@@ -31,6 +31,6 @@ namespace Keel.Utils
         }
 
         public static bool IsBlittable(this Type type) =>
-            TypeInfo.IsBlittable(type);
+            TypeTraits.IsBlittable(type);
     }
 }

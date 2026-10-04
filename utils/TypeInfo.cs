@@ -8,7 +8,7 @@ namespace Keel.Utils
     /// <summary>
     /// An API that holds the information about any type.
     /// </summary>
-    public static class TypeInfo
+    public static class TypeTraits
     {
         private static readonly Dictionary<Type, bool> s_blittableValueCache = new();
 
@@ -103,6 +103,6 @@ namespace Keel.Utils
         public static readonly bool IsBlittable;
 
         static TypeInfo() =>
-            IsBlittable = TypeInfo.IsBlittable(typeof(T));
+            IsBlittable = TypeTraits.IsBlittable(typeof(T));
     }
 }
