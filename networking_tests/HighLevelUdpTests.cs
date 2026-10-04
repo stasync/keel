@@ -7,7 +7,7 @@ namespace Keel.Networking.Tests
     /// <summary>
     /// Test for high level UPD api - <see cref="ReliableUdpListener"/> & <see cref="ReliableUdpClient"/>.
     /// </summary>
-    public class HighLevelUpdTests : IDisposable
+    public class HighLevelUdpTests : IDisposable
     {
         private const uint TIMEOUT = ReliableUdpListener.HEARTBEAT_TIMEOUT_MS + 200;
 
@@ -15,7 +15,7 @@ namespace Keel.Networking.Tests
         private readonly ReliableUdpClient[] _clients = new ReliableUdpClient[8];
         private readonly HashSet<string> _unexpectedClientActions = new();
 
-        public HighLevelUpdTests()
+        public HighLevelUdpTests()
         {
             _server = new ReliableUdpListener(maxConnections: 16, port: 0, protocolKey: 0);
             _server.UnexpectedClientAction += (_, s) =>
@@ -33,7 +33,7 @@ namespace Keel.Networking.Tests
         }
 
         /// <summary>
-        /// TODO: Brake down to multiple tests - probably need to implement test context class, which will start up all the relevant services.
+        /// TODO: Break down into multiple tests - probably need to implement test context class, which will start up all the relevant services.
         /// </summary>
         [Fact]
         public void Test()
