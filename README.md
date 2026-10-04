@@ -1,6 +1,6 @@
 # Keel
 
-[![Build](https://github.com/stasync/keel/actions/workflows/build.yml/badge.svg)](https://github.com/stasync/keel/actions/workflows/build.yml)
+[![Build](https://github.com/stasync/keel-dotnet/actions/workflows/build.yml/badge.svg)](https://github.com/stasync/keel-dotnet/actions/workflows/build.yml)
 
 Keel is a small set of C# libraries that serve as a base layer for other projects. It has three parts:
 
@@ -12,12 +12,12 @@ The libraries target .NET Standard 2.1 and .NET 10, so they run on any runtime t
 
 ## Getting started
 
-The quickest way to get the libraries is to download them from [Releases](https://github.com/stasync/keel/releases). Every release has two zips, one for .NET 10 and one for .NET Standard 2.1. Each contains `Keel.Utils.dll`, `Keel.Networking.dll` and `Keel.DependencyInjection.dll`. Reference the DLLs you need from your project.
+The quickest way to get the libraries is to download them from [Releases](https://github.com/stasync/keel-dotnet/releases). Every release has two zips, one for .NET 10 and one for .NET Standard 2.1. Each contains `Keel.Utils.dll`, `Keel.Networking.dll` and `Keel.DependencyInjection.dll`. Reference the DLLs you need from your project.
 
 To build from source instead, you need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-git clone git@github.com:stasync/keel.git
+git clone git@github.com:stasync/keel-dotnet.git
 cd keel
 sh build.sh
 ```
@@ -32,7 +32,7 @@ artifacts/delivery/
 
 To use the libraries, reference the DLLs from your project, or add this repository as a git submodule and reference the `.csproj` files directly.
 
-If you need a change that hasn't made it into a numbered release yet, use the [latest build](https://github.com/stasync/keel/releases/tag/latest-build). It's rebuilt and tested automatically after every change to `main`, so it's always current, but it isn't a stable version.
+If you need a change that hasn't made it into a numbered release yet, use the [latest build](https://github.com/stasync/keel-dotnet/releases/tag/latest-build). It's rebuilt and tested automatically after every change to `main`, so it's always current, but it isn't a stable version.
 
 ## Networking
 
