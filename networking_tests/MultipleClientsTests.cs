@@ -22,7 +22,7 @@ namespace Keel.Networking.Tests
 
             _server.RegisterDataTransferLayer(new PrefixDataTransferLayer());
             _server.RegisterDataTransferLayer(new PostfixDataTransferLayer());
-            _server.RegisterDataTransferLayer(new DataTransferXorEncryptionLayer(encryptionKey));
+            _server.RegisterDataTransferLayer(new DataTransferXorObfuscationLayer(encryptionKey));
 
             _server.RegisterIncomingPacketSimulator(new SimulatePacketLossPercentage
             {
@@ -43,7 +43,7 @@ namespace Keel.Networking.Tests
                 // Should be reversed order on the client.
                 _clients[i].RegisterDataTransferLayer(new PrefixDataTransferLayer());
                 _clients[i].RegisterDataTransferLayer(new PostfixDataTransferLayer());
-                _clients[i].RegisterDataTransferLayer(new DataTransferXorEncryptionLayer(encryptionKey));
+                _clients[i].RegisterDataTransferLayer(new DataTransferXorObfuscationLayer(encryptionKey));
 
                 _clients[i].RegisterIncomingPacketSimulator(new SimulatePacketLossPercentage
                 {

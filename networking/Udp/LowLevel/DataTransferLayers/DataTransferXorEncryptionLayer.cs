@@ -4,11 +4,11 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
 {
-    public sealed class DataTransferXorEncryptionLayer : UdpReliableProtocol.DataTransferLayer
+    public sealed class DataTransferXorObfuscationLayer : UdpReliableProtocol.DataTransferLayer
     {
         private readonly byte[] _keyBytes;
 
-        public DataTransferXorEncryptionLayer(string key = "") =>
+        public DataTransferXorObfuscationLayer(string key = "") =>
             _keyBytes = string.IsNullOrWhiteSpace(key) ? null : System.Text.Encoding.UTF8.GetBytes(key);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -115,7 +115,7 @@ namespace Keel.Networking.Udp
                 var newConnectionRequest = _connectionRequests.Dequeue();
                 var targetConnectionSlot = -1;
 
-                // TODO: Probably the fist thing we should is if any slot is available.
+                // TODO: Probably the first thing we should check is whether any slot is available.
                 var isNewConnectionValid = ValidateConnection == null || ValidateConnection(newConnectionRequest);
                 if (isNewConnectionValid)
                 {
