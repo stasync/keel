@@ -7,14 +7,14 @@ namespace Keel.Networking.Udp.LowLevel
         public readonly uint Uid;
         public readonly IPEndPoint EndPoint;
         public readonly byte[] Buffer;
-        public readonly byte ProtocolPrefix;
+        public readonly byte Channel;
 
-        internal IncomingDataSnapshot(uint uid, IPEndPoint endPoint, byte[] data, byte protocolPrefix)
+        internal IncomingDataSnapshot(uint uid, IPEndPoint endPoint, byte[] data, byte channel)
         {
             Uid = uid;
             EndPoint = endPoint;
             Buffer = data;
-            ProtocolPrefix = protocolPrefix;
+            Channel = channel;
         }
     }
 }

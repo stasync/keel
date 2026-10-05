@@ -4,19 +4,11 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel
 {
-    public sealed partial class UdpReliableProtocol
+    public sealed partial class UdpTransport
     {
         /// <summary>
-        /// Abstract class to implement custom incoming packet simulators.
-        /// </summary>
-        public abstract class IncomingPacketSimulator
-        {
-            public abstract void Update(in List<(byte[], IPEndPoint)> incomingQueue);
-        }
-
-        /// <summary>
         /// A helper wrapper to be able to simulate incoming packets.
-        /// Runs at the lowest level of <see cref="UdpReliableProtocol"/> to simulate more accurate.
+        /// Runs at the lowest level of <see cref="UdpTransport"/> to simulate more accurately.
         /// </summary>
         private sealed class IncomingPacketSimulationPipeline
         {
@@ -26,7 +18,7 @@ namespace Keel.Networking.Udp.LowLevel
             private readonly List<IncomingPacketSimulator> _incomingPacketSimulators = new();
 
             /// <summary>
-            /// A date we get from the network interface.
+            /// Data we get from the network interface.
             /// </summary>
             internal void OnDataReceived(byte[] packetData, IPEndPoint sender) =>
                 _incomingDataQueue.Add((packetData, sender));

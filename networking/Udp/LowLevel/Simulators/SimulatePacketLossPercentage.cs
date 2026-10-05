@@ -4,7 +4,7 @@ using System.Net;
 
 namespace Keel.Networking.Udp.LowLevel.Simulators
 {
-    public sealed class SimulatePacketLossPercentage : UdpReliableProtocol.IncomingPacketSimulator
+    public sealed class SimulatePacketLossPercentage : IncomingPacketSimulator
     {
         /// <summary>
         /// A packet loss percentage, should be in [0, 100] range.

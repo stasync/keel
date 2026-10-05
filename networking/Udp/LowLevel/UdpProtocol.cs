@@ -6,14 +6,14 @@ using System.Runtime.CompilerServices;
 namespace Keel.Networking.Udp.LowLevel
 {
     /// <summary>
-    /// Build on top of <see cref="UdpReliableProtocol"/>.
-    /// Implements complete wrapper for <see cref="DgramDeliveryMethod"/> enum.
-    /// Can filter out dgram duplicates.
-    /// Can receive dgram in order.
+    /// Built on top of <see cref="UdpTransport"/>.
+    /// Implements complete wrapper for <see cref="DeliveryMethod"/> enum - each delivery method is its own transport channel.
+    /// Can filter out duplicated datagrams.
+    /// Can receive datagrams in order.
     /// </summary>
-    public sealed class UdpFullProtocol : IDisposable
+    public sealed class UdpProtocol : IDisposable
     {
-        public enum DgramDeliveryMethod
+        public enum DeliveryMethod
         {
             Unreliable = 0,
             Reliable,
@@ -24,21 +24,21 @@ namespace Keel.Networking.Udp.LowLevel
         {
             internal int Count => _value.Count;
 
-            private readonly Dictionary<IPEndPoint, EndPointDataByProtocolCollection> _value = new();
+            private readonly Dictionary<IPEndPoint, EndPointDataByDeliveryMethod> _value = new();
             private readonly List<IPEndPoint> _inactiveEndPointToRemove = new();
 
             /// <summary>
-            /// Returns the per protocol state for the sender.
+            /// Returns the per delivery method state for the sender.
             /// </summary>
             internal EndPointData Get(in IncomingDataSnapshot incomingData)
             {
                 if (!_value.TryGetValue(incomingData.EndPoint, out var endPointData))
-                    _value.Add(incomingData.EndPoint, endPointData = new EndPointDataByProtocolCollection());
+                    _value.Add(incomingData.EndPoint, endPointData = new EndPointDataByDeliveryMethod());
 
                 // Any datagram from this endpoint keeps its tracking state alive.
                 endPointData.LastActivityTime = DateTime.UtcNow;
 
-                return endPointData.Get((DgramDeliveryMethod)incomingData.ProtocolPrefix);
+                return endPointData.Get((DeliveryMethod)incomingData.Channel);
             }
 
             /// <summary>
@@ -80,7 +80,7 @@ namespace Keel.Networking.Udp.LowLevel
             }
         }
 
-        private sealed class EndPointDataByProtocolCollection
+        private sealed class EndPointDataByDeliveryMethod
         {
             /// <summary>
             /// When a datagram was last seen from this endpoint, used to expire the state.
@@ -89,15 +89,15 @@ namespace Keel.Networking.Udp.LowLevel
 
             private readonly EndPointData[] _value;
 
-            internal EndPointDataByProtocolCollection()
+            internal EndPointDataByDeliveryMethod()
             {
-                var enumValueCount = Enum.GetNames(typeof(DgramDeliveryMethod)).Length;
+                var enumValueCount = Enum.GetNames(typeof(DeliveryMethod)).Length;
                 _value = new EndPointData[enumValueCount];
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            internal EndPointData Get(DgramDeliveryMethod protocol) =>
-                _value[(int)protocol] ?? (_value[(int)protocol] = new EndPointData());
+            internal EndPointData Get(DeliveryMethod deliveryMethod) =>
+                _value[(int)deliveryMethod] ?? (_value[(int)deliveryMethod] = new EndPointData());
         }
 
         private sealed class EndPointData
@@ -113,19 +113,19 @@ namespace Keel.Networking.Udp.LowLevel
                 if (_receivedDatagrams.IsDuplicate(data.Uid))
                     return;
 
-                var deliveryMethod = (DgramDeliveryMethod)data.ProtocolPrefix;
-                if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && _lastValidUid > data.Uid)
+                var deliveryMethod = (DeliveryMethod)data.Channel;
+                if (deliveryMethod == DeliveryMethod.ReliableOrdered && _lastValidUid > data.Uid)
                 {
-                    // This is more or less a sanity check, for ReliableOrdered protocol only.
+                    // This is more or less a sanity check, for ReliableOrdered only.
                     // NOTE: This is a serious reliability issue.
-                    throw new InvalidOperationException($"[{(DgramDeliveryMethod)data.ProtocolPrefix}] Incorrect incoming datagram uid: '{data.Uid}', but expected id should be more than '{_lastValidUid}'.");
+                    throw new InvalidOperationException($"[{(DeliveryMethod)data.Channel}] Incorrect incoming datagram uid: '{data.Uid}', but expected id should be more than '{_lastValidUid}'.");
                 }
 
                 var shouldBeReceived = true;
 
                 // If the message should be received in order, check the previous message uid - it should be less by 1.
                 // Otherwise, add it to the pending buffer.
-                if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered && _lastValidUid != data.Uid - 1)
+                if (deliveryMethod == DeliveryMethod.ReliableOrdered && _lastValidUid != data.Uid - 1)
                 {
                     _unorderedPendingData.Add(data);
                     shouldBeReceived = false;
@@ -137,7 +137,7 @@ namespace Keel.Networking.Udp.LowLevel
                     EnqueueReceive(data, incomingQueue);
 
                     // If this message is received in order, try to find pending ordered messages and append to queue.
-                    if (deliveryMethod == DgramDeliveryMethod.ReliableOrdered)
+                    if (deliveryMethod == DeliveryMethod.ReliableOrdered)
                     {
                         while (TryDequeuePending(out var snapshot))
                             EnqueueReceive(snapshot, incomingQueue);
@@ -277,16 +277,16 @@ namespace Keel.Networking.Udp.LowLevel
         /// How long an endpoint may stay silent before its tracking state is released. An endpoint that has
         /// sent nothing for this long is treated as gone, and one that starts sending again is treated as new.
         /// </summary>
-        private const double ENDPOINT_INACTIVITY_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS * 1.2;
+        private const double ENDPOINT_INACTIVITY_TIMEOUT_MS = UdpTransport.MAX_RESEND_DURATION_MS * 1.2;
 
         /// <summary>
         /// How often the inactivity sweep runs. Walking every tracked endpoint on every poll would be wasted
         /// work, so entries live somewhere between one and two intervals past the timeout.
         /// </summary>
-        private const double ENDPOINT_SWEEP_INTERVAL_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS;
+        private const double ENDPOINT_SWEEP_INTERVAL_MS = UdpTransport.MAX_RESEND_DURATION_MS;
 
         public int ReliabilityFailureCount =>
-            _baseProtocol.ReliabilityFailureCount;
+            _transport.ReliabilityFailureCount;
 
         /// <summary>
         /// How many endpoints currently hold tracking state. State is allocated on the first datagram from any
@@ -295,28 +295,28 @@ namespace Keel.Networking.Udp.LowLevel
         public int TrackedEndPointCount =>
             _trackedEndPoints.Count;
 
-        public event Action<IPEndPoint> FailedToProcessDgram = delegate { };
+        public event Action<IPEndPoint> FailedToProcessDatagram = delegate { };
 
         private readonly Queue<IncomingDataSnapshot> _incomingPayloadQueue = new();
         private readonly EndPointDataCollection _trackedEndPoints = new();
-        private readonly UdpReliableProtocol _baseProtocol;
+        private readonly UdpTransport _transport;
 
         private DateTime _nextEndPointSweepTime;
 
-        public UdpFullProtocol(int port, ushort protocolKey)
+        public UdpProtocol(int port, ushort protocolKey)
         {
-            _baseProtocol = new UdpReliableProtocol(port, protocolKey);
-            _baseProtocol.FailedToProcessDgram += OnFailedToProcessDgram;
+            _transport = new UdpTransport(port, protocolKey);
+            _transport.FailedToProcessDatagram += OnFailedToProcessDatagram;
         }
 
-        private void OnFailedToProcessDgram(IPEndPoint sender) =>
-            FailedToProcessDgram(sender);
+        private void OnFailedToProcessDatagram(IPEndPoint sender) =>
+            FailedToProcessDatagram(sender);
 
         public void Poll()
         {
-            _baseProtocol.Poll();
+            _transport.Poll();
 
-            while (_baseProtocol.TryDequeueIncoming(out var incomingData))
+            while (_transport.TryDequeueIncoming(out var incomingData))
             {
                 var endPointData = _trackedEndPoints.Get(incomingData);
                 endPointData.TryProcess(incomingData, _incomingPayloadQueue);
@@ -342,7 +342,7 @@ namespace Keel.Networking.Udp.LowLevel
 
             var inactiveEndPoints = _trackedEndPoints.RemoveInactive(currentTime, ENDPOINT_INACTIVITY_TIMEOUT_MS);
             foreach (var inactiveEndPoint in inactiveEndPoints)
-                _baseProtocol.ClearEndpointData(inactiveEndPoint);
+                _transport.RemoveEndPointData(inactiveEndPoint);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -355,54 +355,54 @@ namespace Keel.Networking.Udp.LowLevel
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ValidateDataSize(ArraySegment<byte> data) =>
-            _baseProtocol.ValidateDataSize(data);
+            _transport.ValidateDataSize(data);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendTo(IPEndPoint endPoint, ArraySegment<byte> data, DgramDeliveryMethod deliveryMethod) =>
-            _baseProtocol.SendTo(endPoint, data, (byte)deliveryMethod);
+        public void SendTo(IPEndPoint endPoint, ArraySegment<byte> data, DeliveryMethod deliveryMethod) =>
+            _transport.SendTo(endPoint, data, (byte)deliveryMethod);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void RemoveEndPointData(IPEndPoint endPoint)
         {
             _trackedEndPoints.Remove(endPoint);
-            _baseProtocol.ClearEndpointData(endPoint);
+            _transport.RemoveEndPointData(endPoint);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsBlacklisted(IPAddress address) =>
-            _baseProtocol.IsBlacklisted(address);
+            _transport.IsBlacklisted(address);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddOrUpdateAddressInBlacklist(IPAddress address, int millisecondsToAdd) =>
-            _baseProtocol.AddOrUpdateAddressInBlacklist(address, millisecondsToAdd);
+            _transport.AddOrUpdateAddressInBlacklist(address, millisecondsToAdd);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void RegisterIncomingPacketSimulator(UdpReliableProtocol.IncomingPacketSimulator value) =>
-            _baseProtocol.RegisterIncomingPacketSimulator(value);
+        public void RegisterIncomingPacketSimulator(IncomingPacketSimulator value) =>
+            _transport.RegisterIncomingPacketSimulator(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void UnregisterIncomingPacketSimulator(UdpReliableProtocol.IncomingPacketSimulator value) =>
-            _baseProtocol.UnregisterIncomingPacketSimulator(value);
+        public void UnregisterIncomingPacketSimulator(IncomingPacketSimulator value) =>
+            _transport.UnregisterIncomingPacketSimulator(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnregisterAllIncomingPacketSimulators() =>
-            _baseProtocol.UnregisterAllIncomingPacketSimulators();
+            _transport.UnregisterAllIncomingPacketSimulators();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void RegisterDataTransferLayer(UdpReliableProtocol.DataTransferLayer value) =>
-            _baseProtocol.RegisterDataTransferLayer(value);
+        public void RegisterDataTransferLayer(DataTransferLayer value) =>
+            _transport.RegisterDataTransferLayer(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void UnregisterDataTransferLayer(UdpReliableProtocol.DataTransferLayer value) =>
-            _baseProtocol.UnregisterDataTransferLayer(value);
+        public void UnregisterDataTransferLayer(DataTransferLayer value) =>
+            _transport.UnregisterDataTransferLayer(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnregisterAllDataTransferLayers() =>
-            _baseProtocol.UnregisterAllDataTransferLayers();
+            _transport.UnregisterAllDataTransferLayers();
 
         public void Dispose()
         {
-            _baseProtocol.Dispose();
+            _transport.Dispose();
             _trackedEndPoints.Clear();
         }
     }

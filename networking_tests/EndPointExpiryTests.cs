@@ -18,21 +18,21 @@ namespace Keel.Networking.Tests
         /// Both the inactivity timeout and the sweep interval are MAX_RESEND_DURATION_MS, so expiry lands
         /// within one interval past the timeout - twice that leaves room for a slow tick.
         /// </summary>
-        private const int EXPIRY_BUDGET_MS = (int)UdpReliableProtocol.MAX_RESEND_DURATION_MS * 4;
+        private const int EXPIRY_BUDGET_MS = (int)UdpTransport.MAX_RESEND_DURATION_MS * 4;
 
         private readonly ITestOutputHelper _output;
 
         private readonly int _receiverPort;
-        private readonly UdpFullProtocol _receiver;
-        private readonly UdpFullProtocol _oneShotSender = new(port: 0, protocolKey: 0);
-        private readonly UdpFullProtocol _activeSender = new(port: 0, protocolKey: 0);
+        private readonly UdpProtocol _receiver;
+        private readonly UdpProtocol _oneShotSender = new(port: 0, protocolKey: 0);
+        private readonly UdpProtocol _activeSender = new(port: 0, protocolKey: 0);
 
         public EndPointExpiryTests(ITestOutputHelper output)
         {
             _output = output;
 
             _receiverPort = Utils.GetAvailableUdpPort();
-            _receiver = new UdpFullProtocol(_receiverPort, protocolKey: 0);
+            _receiver = new UdpProtocol(_receiverPort, protocolKey: 0);
         }
 
         public void Dispose()
@@ -78,13 +78,13 @@ namespace Keel.Networking.Tests
             Assert.Equal(1, _receiver.TrackedEndPointCount);
         }
 
-        private static void Send(UdpFullProtocol sender, IPEndPoint receiverEndPoint)
+        private static void Send(UdpProtocol sender, IPEndPoint receiverEndPoint)
         {
             var writer = new NetWriter();
             writer.SeekZero();
             writer.WriteString("ping");
 
-            sender.SendTo(receiverEndPoint, writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+            sender.SendTo(receiverEndPoint, writer.AsArraySegment(), UdpProtocol.DeliveryMethod.Unreliable);
         }
 
         private void PumpUntil(Func<bool> condition, int millisecondsTimeout, bool keepActiveSenderTalking)

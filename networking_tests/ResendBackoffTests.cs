@@ -22,7 +22,7 @@ namespace Keel.Networking.Tests
         /// <summary>
         /// Records when each datagram actually left the socket, at the lowest level, retransmissions included.
         /// </summary>
-        private sealed class SendTimeRecorder : UdpReliableProtocol.DataTransferLayer
+        private sealed class SendTimeRecorder : DataTransferLayer
         {
             internal readonly List<DateTime> SendTimes = new();
 
@@ -36,8 +36,8 @@ namespace Keel.Networking.Tests
 
         private readonly ITestOutputHelper _output;
 
-        private readonly UdpFullProtocol _sender;
-        private readonly UdpFullProtocol _blackHole;
+        private readonly UdpProtocol _sender;
+        private readonly UdpProtocol _blackHole;
         private readonly SendTimeRecorder _senderSends = new();
         private readonly int _blackHolePort;
 
@@ -49,10 +49,10 @@ namespace Keel.Networking.Tests
 
             // A live socket that never acknowledges anything. Dropping at the simulator rather than sending to
             // a closed port keeps ICMP unreachable out of the picture.
-            _blackHole = new UdpFullProtocol(_blackHolePort, protocolKey: 0);
+            _blackHole = new UdpProtocol(_blackHolePort, protocolKey: 0);
             _blackHole.RegisterIncomingPacketSimulator(new Udp.LowLevel.Simulators.DropAllPacketsSimulator());
 
-            _sender = new UdpFullProtocol(port: 0, protocolKey: 0);
+            _sender = new UdpProtocol(port: 0, protocolKey: 0);
             _sender.RegisterDataTransferLayer(_senderSends);
         }
 
@@ -70,7 +70,7 @@ namespace Keel.Networking.Tests
             writer.WriteString("payload that will never be acknowledged");
 
             _sender.SendTo(new IPEndPoint(IPAddress.Loopback, _blackHolePort), writer.AsArraySegment(),
-                UdpFullProtocol.DgramDeliveryMethod.Reliable);
+                UdpProtocol.DeliveryMethod.Reliable);
 
             var ticks = 0;
             var startTime = DateTime.UtcNow;
@@ -116,12 +116,12 @@ namespace Keel.Networking.Tests
             writer.WriteString("payload that will never be acknowledged");
 
             _sender.SendTo(new IPEndPoint(IPAddress.Loopback, _blackHolePort), writer.AsArraySegment(),
-                UdpFullProtocol.DgramDeliveryMethod.Reliable);
+                UdpProtocol.DeliveryMethod.Reliable);
 
             var sentTime = DateTime.UtcNow;
             var gaveUpAfterMs = -1d;
 
-            while ((DateTime.UtcNow - sentTime).TotalMilliseconds < UdpReliableProtocol.MAX_RESEND_DURATION_MS * 2)
+            while ((DateTime.UtcNow - sentTime).TotalMilliseconds < UdpTransport.MAX_RESEND_DURATION_MS * 2)
             {
                 Thread.Sleep(TICK_MS);
 
@@ -142,8 +142,8 @@ namespace Keel.Networking.Tests
             Assert.True(gaveUpAfterMs > 0, "The datagram was never given up on.");
 
             // Bounded by the resend duration, with a tick of slack either side.
-            Assert.InRange(gaveUpAfterMs, UdpReliableProtocol.MAX_RESEND_DURATION_MS - TICK_MS,
-                UdpReliableProtocol.MAX_RESEND_DURATION_MS + TICK_MS * 10);
+            Assert.InRange(gaveUpAfterMs, UdpTransport.MAX_RESEND_DURATION_MS - TICK_MS,
+                UdpTransport.MAX_RESEND_DURATION_MS + TICK_MS * 10);
 
             // And it stops retransmitting once it has given up.
             for (var i = 0; i < 20; i++)

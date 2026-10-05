@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
 {
-    public sealed class DataTransferXorObfuscationLayer : UdpReliableProtocol.DataTransferLayer
+    public sealed class DataTransferXorObfuscationLayer : DataTransferLayer
     {
         private readonly byte[] _keyBytes;
 

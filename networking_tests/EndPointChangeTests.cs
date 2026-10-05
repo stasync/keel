@@ -50,7 +50,7 @@ namespace Keel.Networking.Tests
 
             // Same session, new source address - the client "moved". Its original socket goes quiet, exactly
             // as it would after a rebinding.
-            using var movedClient = new UdpFullProtocol(port: 0, protocolKey: 0);
+            using var movedClient = new UdpProtocol(port: 0, protocolKey: 0);
             var writer = new NetWriter();
             writer.SeekZero();
             writer.WriteByte((byte)ReliableUdpServer.ClientMessageCodes.Heartbeat);
@@ -65,7 +65,7 @@ namespace Keel.Networking.Tests
             {
                 Thread.Sleep(millisecondsTimeout: 10);
 
-                movedClient.SendTo(serverEndPoint, heartbeat, UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+                movedClient.SendTo(serverEndPoint, heartbeat, UdpProtocol.DeliveryMethod.Unreliable);
                 movedClient.Poll();
                 _server.Update();
             }

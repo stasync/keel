@@ -91,7 +91,7 @@ namespace Keel.Networking.Tests
             Assert.Empty(_unexpectedClientActions);
         }
 
-        private void PumpUntil(Func<bool> condition, uint millisecondsTimeout, UdpFullProtocol alsoPoll = null)
+        private void PumpUntil(Func<bool> condition, uint millisecondsTimeout, UdpProtocol alsoPoll = null)
         {
             var startTime = DateTime.UtcNow;
             while (!condition() && (DateTime.UtcNow - startTime).TotalMilliseconds < millisecondsTimeout)
@@ -105,7 +105,7 @@ namespace Keel.Networking.Tests
                 Tick(alsoPoll: null);
         }
 
-        private void Tick(UdpFullProtocol alsoPoll)
+        private void Tick(UdpProtocol alsoPoll)
         {
             Thread.Sleep(millisecondsTimeout: 10);
 

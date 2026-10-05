@@ -46,7 +46,7 @@ namespace Keel.Networking.Tests
 
                 // Should throw.
                 Assert.ThrowsAny<Exception>(() =>
-                    _client.Send(nonMtu, UdpFullProtocol.DgramDeliveryMethod.Reliable));
+                    _client.Send(nonMtu, UdpProtocol.DeliveryMethod.Reliable));
             }
         }
     }

@@ -10,7 +10,7 @@ using System.Security.Cryptography;
 namespace Keel.Networking.Udp
 {
     /// <summary>
-    /// A high level server based on <see cref="UdpFullProtocol"/>.
+    /// A high level server based on <see cref="UdpProtocol"/>.
     /// </summary>
     public sealed class ReliableUdpServer : IDisposable
     {
@@ -55,15 +55,15 @@ namespace Keel.Networking.Udp
         }
 
         /// <summary>
-        /// Derived from <see cref="UdpReliableProtocol.MAX_RESEND_DURATION_MS"/> so the two horizons stay
+        /// Derived from <see cref="UdpTransport.MAX_RESEND_DURATION_MS"/> so the two horizons stay
         /// in step: there is no point declaring a connection dead while the layer below is still retransmitting
         /// for it, nor retransmitting for a connection that is already gone.
         /// </summary>
-        public const uint HEARTBEAT_TIMEOUT_MS = UdpReliableProtocol.MAX_RESEND_DURATION_MS;
+        public const uint HEARTBEAT_TIMEOUT_MS = UdpTransport.MAX_RESEND_DURATION_MS;
 
         public event Action<uint, ConnectionRequest> Connected = delegate { };
         public event Action<uint> Disconnected = delegate { };
-        public event Action<uint, byte[], UdpFullProtocol.DgramDeliveryMethod> DataReceived = delegate { };
+        public event Action<uint, byte[], UdpProtocol.DeliveryMethod> DataReceived = delegate { };
         public event Action<IPEndPoint, ReliableUdpClient.RejectionReason> ConnectionRejected = delegate { };
         public event Action<IPEndPoint, string> UnexpectedClientAction = delegate { };
         public event ValidateConnectionDelegate ValidateConnection;
@@ -71,7 +71,7 @@ namespace Keel.Networking.Udp
         public readonly int Port;
 
         private readonly UidProvider _connectionUidProvider = new();
-        private readonly UdpFullProtocol _protocol;
+        private readonly UdpProtocol _protocol;
         private readonly Queue<ConnectionRequest> _connectionRequests = new();
         private readonly Connection[] _connectionSlots;
         private readonly NetWriter _dataWriter = new();
@@ -90,8 +90,8 @@ namespace Keel.Networking.Udp
             maxConnections = Math.Clamp(maxConnections, min: 0, max: byte.MaxValue);
 
             _connectionSlots = new Connection[maxConnections];
-            _protocol = new UdpFullProtocol(Port, protocolKey: protocolKey);
-            _protocol.FailedToProcessDgram += OnFailedToProcessDgram;
+            _protocol = new UdpProtocol(Port, protocolKey: protocolKey);
+            _protocol.FailedToProcessDatagram += OnFailedToProcessDatagram;
         }
 
         public void Update()
@@ -153,7 +153,7 @@ namespace Keel.Networking.Udp
                     _dataWriter.WritePackedUInt32(newConnectionInstance.ValidationUid);
                     _dataWriter.WriteByte((byte)targetConnectionSlot);
 
-                    _protocol.SendTo(newConnectionRequest.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+                    _protocol.SendTo(newConnectionRequest.EndPoint, _dataWriter.AsArraySegment(), UdpProtocol.DeliveryMethod.Reliable);
                 }
                 else
                 {
@@ -166,7 +166,7 @@ namespace Keel.Networking.Udp
                     // NOTE: Client should not rely on the rejection message completely.
                     _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.ConnectionRejected);
                     _dataWriter.WriteByte((byte)rejectionReason);
-                    _protocol.SendTo(newConnectionRequest.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+                    _protocol.SendTo(newConnectionRequest.EndPoint, _dataWriter.AsArraySegment(), UdpProtocol.DeliveryMethod.Unreliable);
 
                     // Connection rejected - lets also clean up endpoint data.
                     _protocol.RemoveEndPointData(newConnectionRequest.EndPoint);
@@ -259,7 +259,7 @@ namespace Keel.Networking.Udp
                             _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Heartbeat);
 
                             // NOTE: unreliable for the same reason as the client side heartbeat - see TrySendHeartbeat.
-                            _protocol.SendTo(incomingDataSnapshot.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+                            _protocol.SendTo(incomingDataSnapshot.EndPoint, _dataWriter.AsArraySegment(), UdpProtocol.DeliveryMethod.Unreliable);
                         }
                         break;
 
@@ -291,7 +291,7 @@ namespace Keel.Networking.Udp
                             }
 
                             var payload = _dataReader.ReadBytesAndSize();
-                            DataReceived(connection.Uid, payload, (UdpFullProtocol.DgramDeliveryMethod)incomingDataSnapshot.ProtocolPrefix);
+                            DataReceived(connection.Uid, payload, (UdpProtocol.DeliveryMethod)incomingDataSnapshot.Channel);
                         }
                         break;
 
@@ -336,7 +336,7 @@ namespace Keel.Networking.Udp
         /// <summary>
         /// Drops the recently disconnected uids that are old enough that a client cannot still be sending against them.
         ///
-        /// NOTE: releasing per endpoint protocol state is not done here - <see cref="UdpFullProtocol"/> expires
+        /// NOTE: releasing per endpoint protocol state is not done here - <see cref="UdpProtocol"/> expires
         /// its own tracking, since it is what allocates it.
         /// </summary>
         private void PurgeRecentDisconnects()
@@ -357,13 +357,13 @@ namespace Keel.Networking.Udp
             }
         }
 
-        private void OnFailedToProcessDgram(IPEndPoint sender)
+        private void OnFailedToProcessDatagram(IPEndPoint sender)
         {
             // NOTE: this usually indicates that a client sends incorrect/corrupted messages.
             UnexpectedClientAction(sender, "Unexpected data received on the protocol level.");
         }
 
-        public void SendToAll(ArraySegment<byte> data, UdpFullProtocol.DgramDeliveryMethod dgramDeliveryMethod)
+        public void SendToAll(ArraySegment<byte> data, UdpProtocol.DeliveryMethod deliveryMethod)
         {
             EnsureValid();
 
@@ -374,11 +374,11 @@ namespace Keel.Networking.Udp
             foreach (var connection in _connectionSlots)
             {
                 if (connection != null)
-                    _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), dgramDeliveryMethod);
+                    _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), deliveryMethod);
             }
         }
 
-        public void SendTo(uint targetConnectionUid, ArraySegment<byte> data, UdpFullProtocol.DgramDeliveryMethod dgramDeliveryMethod)
+        public void SendTo(uint targetConnectionUid, ArraySegment<byte> data, UdpProtocol.DeliveryMethod deliveryMethod)
         {
             EnsureValid();
 
@@ -390,7 +390,7 @@ namespace Keel.Networking.Udp
                 _dataWriter.SeekZero();
                 _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Data);
                 _dataWriter.WriteBytesAndSize(data);
-                _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), dgramDeliveryMethod);
+                _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), deliveryMethod);
                 break;
             }
         }
@@ -425,13 +425,13 @@ namespace Keel.Networking.Udp
             Logger.LogError($"[{GetType().FullName}] Sender address '{address}' will be added to blacklist for '{millisecondsToAdd}ms'. Reason: {reasonError}.");
         }
 
-        public void RegisterIncomingPacketSimulator(UdpReliableProtocol.IncomingPacketSimulator value)
+        public void RegisterIncomingPacketSimulator(IncomingPacketSimulator value)
         {
             EnsureValid();
             _protocol.RegisterIncomingPacketSimulator(value);
         }
 
-        public void UnregisterIncomingPacketSimulator(UdpReliableProtocol.IncomingPacketSimulator value)
+        public void UnregisterIncomingPacketSimulator(IncomingPacketSimulator value)
         {
             EnsureValid();
             _protocol.UnregisterIncomingPacketSimulator(value);
@@ -443,13 +443,13 @@ namespace Keel.Networking.Udp
             _protocol.UnregisterAllIncomingPacketSimulators();
         }
 
-        public void RegisterDataTransferLayer(UdpReliableProtocol.DataTransferLayer value)
+        public void RegisterDataTransferLayer(DataTransferLayer value)
         {
             EnsureValid();
             _protocol.RegisterDataTransferLayer(value);
         }
 
-        public void UnregisterDataTransferLayer(UdpReliableProtocol.DataTransferLayer value)
+        public void UnregisterDataTransferLayer(DataTransferLayer value)
         {
             EnsureValid();
             _protocol.UnregisterDataTransferLayer(value);
@@ -474,7 +474,7 @@ namespace Keel.Networking.Udp
                 // Send a disconnect message.
                 _dataWriter.SeekZero();
                 _dataWriter.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Disconnect);
-                _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+                _protocol.SendTo(connection.EndPoint, _dataWriter.AsArraySegment(), UdpProtocol.DeliveryMethod.Unreliable);
 
                 // Unregister endpoint data.
                 _protocol.RemoveEndPointData(connection.EndPoint);

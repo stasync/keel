@@ -4,7 +4,7 @@ using System.Net;
 
 namespace Keel.Networking.Udp.LowLevel.Simulators
 {
-    public sealed class SimulatePacketDelay : UdpReliableProtocol.IncomingPacketSimulator
+    public sealed class SimulatePacketDelay : IncomingPacketSimulator
     {
         /// <summary>
         /// Desired packet delay in milliseconds.

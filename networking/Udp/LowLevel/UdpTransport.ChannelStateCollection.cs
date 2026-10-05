@@ -6,11 +6,11 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel
 {
-    public partial class UdpReliableProtocol
+    public partial class UdpTransport
     {
-        internal sealed class ProtocolStateCollection
+        internal sealed class ChannelStateCollection
         {
-            private sealed class ProtocolState
+            private sealed class ChannelState
             {
                 /// <summary>
                 /// Retransmission bookkeeping for a single pending datagram.
@@ -23,7 +23,7 @@ namespace Keel.Networking.Udp.LowLevel
                 }
 
                 private uint _currentDatagramUid;
-                private readonly byte _prefix;
+                private readonly byte _channel;
                 private readonly IPEndPoint _endPoint;
                 private readonly Action<DatagramSnapshot> _resendRequired;
                 private readonly Action<IPEndPoint> _reliabilityFailure;
@@ -31,9 +31,9 @@ namespace Keel.Networking.Udp.LowLevel
                 private readonly Dictionary<uint, OutgoingRetryState> _outgoingRetryStates = new();
                 private readonly List<uint> _attemptsToRemoveAfterResend = new();
 
-                internal ProtocolState(byte protocolPrefix, IPEndPoint endPoint, Action<DatagramSnapshot> resendRequired, Action<IPEndPoint> reliabilityFailure)
+                internal ChannelState(byte channel, IPEndPoint endPoint, Action<DatagramSnapshot> resendRequired, Action<IPEndPoint> reliabilityFailure)
                 {
-                    _prefix = protocolPrefix;
+                    _channel = channel;
                     _endPoint = endPoint;
                     _resendRequired = resendRequired;
                     _reliabilityFailure = reliabilityFailure;
@@ -42,10 +42,10 @@ namespace Keel.Networking.Udp.LowLevel
                 internal uint ProcessOutgoingDatagram(in ArraySegment<byte> data)
                 {
                     var result = ++_currentDatagramUid;
-                    // If the prefix is greater than 0, we expect a reliable message and have to keep the datagram state temporary.
-                    if (_prefix > 0)
+                    // If the channel is greater than 0, we expect a reliable message and have to keep the datagram state temporarily.
+                    if (_channel > 0)
                     {
-                        var snapshot = new DatagramSnapshot(result, _endPoint, data, _prefix);
+                        var snapshot = new DatagramSnapshot(result, _endPoint, data, _channel);
                         _pendingOutgoingSnapshots.TryAdd(snapshot.Uid, snapshot);
 
                         // The datagram has just gone out, so the first retransmission is one delay away rather
@@ -93,7 +93,7 @@ namespace Keel.Networking.Udp.LowLevel
                         if (currentTime < retryState.NextResendTime)
                             continue;
 
-                        // Resend dgram.
+                        // Resend datagram.
                         _resendRequired(pendingSnapshot);
 
                         // Update retry state.
@@ -105,11 +105,11 @@ namespace Keel.Networking.Udp.LowLevel
 #endif
                     }
 
-                    foreach (var dgramUid in _attemptsToRemoveAfterResend)
-                        TreReleasePendingOutgoingDgram(dgramUid);
+                    foreach (var datagramUid in _attemptsToRemoveAfterResend)
+                        ReleasePendingOutgoingDatagram(datagramUid);
                 }
 
-                internal void TreReleasePendingOutgoingDgram(uint uid)
+                internal void ReleasePendingOutgoingDatagram(uint uid)
                 {
                     if (_pendingOutgoingSnapshots.Remove(uid, out var snapshot))
                         snapshot.Dispose();
@@ -143,21 +143,21 @@ namespace Keel.Networking.Udp.LowLevel
             private readonly IPEndPoint _endPoint;
             private readonly Action<DatagramSnapshot> _resendRequired;
             private readonly Action<IPEndPoint> _reliabilityFailure;
-            private readonly ProtocolState[] _state;
+            private readonly ChannelState[] _state;
 
-            internal ProtocolStateCollection(IPEndPoint endPoint, byte protocolPoolSize, Action<DatagramSnapshot> resendRequired, Action<IPEndPoint> reliabilityFailure)
+            internal ChannelStateCollection(IPEndPoint endPoint, byte channelCount, Action<DatagramSnapshot> resendRequired, Action<IPEndPoint> reliabilityFailure)
             {
                 _endPoint = endPoint;
                 _resendRequired = resendRequired;
                 _reliabilityFailure = reliabilityFailure;
-                _state = new ProtocolState[protocolPoolSize];
+                _state = new ChannelState[channelCount];
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            internal uint ProcessOutgoingDatagram(byte protocolPrefix, ArraySegment<byte> data)
+            internal uint ProcessOutgoingDatagram(byte channel, ArraySegment<byte> data)
             {
-                ref var state = ref _state[protocolPrefix];
-                state ??= new ProtocolState(protocolPrefix, _endPoint, _resendRequired, _reliabilityFailure);
+                ref var state = ref _state[channel];
+                state ??= new ChannelState(channel, _endPoint, _resendRequired, _reliabilityFailure);
                 return state.ProcessOutgoingDatagram(data);
             }
 
@@ -169,8 +169,8 @@ namespace Keel.Networking.Udp.LowLevel
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            internal void TreReleasePendingOutgoingDgram(uint uid, byte protocolPrefix) =>
-                _state[protocolPrefix].TreReleasePendingOutgoingDgram(uid);
+            internal void ReleasePendingOutgoingDatagram(uint uid, byte channel) =>
+                _state[channel].ReleasePendingOutgoingDatagram(uid);
 
             internal void Clear()
             {

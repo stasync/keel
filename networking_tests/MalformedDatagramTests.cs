@@ -10,7 +10,7 @@ namespace Keel.Networking.Tests
     /// so the client stops heartbeat, never runs its own timeout check, logs nothing,
     /// and the server drops it once <see cref="ReliableUdpServer.HEARTBEAT_TIMEOUT_MS"/> elapses.
     ///
-    /// Uses a raw <see cref="UdpFullProtocol"/> as the server so the test can put arbitrary
+    /// Uses a raw <see cref="UdpProtocol"/> as the server so the test can put arbitrary
     /// bytes on the wire - <see cref="ReliableUdpServer"/> only ever sends well-formed messages.
     /// </summary>
     public class MalformedDatagramTests : IDisposable
@@ -21,7 +21,7 @@ namespace Keel.Networking.Tests
         private const byte CONNECTION_SLOT = 0;
 
         private readonly int _serverPort;
-        private readonly UdpFullProtocol _fakeServer;
+        private readonly UdpProtocol _fakeServer;
         private readonly ReliableUdpClient _client = new();
         private readonly NetWriter _writer = new();
         private readonly NetReader _reader = new();
@@ -33,7 +33,7 @@ namespace Keel.Networking.Tests
             _serverPort = Utils.GetAvailableUdpPort();
 
             // The client always connects with protocol key 0, so the fake server has to match.
-            _fakeServer = new UdpFullProtocol(_serverPort, protocolKey: 0);
+            _fakeServer = new UdpProtocol(_serverPort, protocolKey: 0);
         }
 
         public void Dispose()
@@ -59,7 +59,7 @@ namespace Keel.Networking.Tests
             // Inject one unparsable datagram. Reliable so that it is guaranteed to arrive.
             _writer.SeekZero();
             _writer.WriteByte(UNKNOWN_SERVER_MESSAGE_CODE);
-            _fakeServer.SendTo(_clientEndPoint, _writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+            _fakeServer.SendTo(_clientEndPoint, _writer.AsArraySegment(), UdpProtocol.DeliveryMethod.Reliable);
 
             // Keep the session running well past the point the bad datagram was delivered.
             Pump(millisecondsToRun: 1000);
@@ -115,12 +115,12 @@ namespace Keel.Networking.Tests
                         _writer.WritePackedUInt32(CONNECTION_UID);
                         _writer.WritePackedUInt32(VALIDATION_UID);
                         _writer.WriteByte(CONNECTION_SLOT);
-                        _fakeServer.SendTo(incomingData.EndPoint, _writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+                        _fakeServer.SendTo(incomingData.EndPoint, _writer.AsArraySegment(), UdpProtocol.DeliveryMethod.Reliable);
                         break;
 
                     case ReliableUdpServer.ClientMessageCodes.Heartbeat:
                         _writer.WriteByte((byte)ReliableUdpClient.ServerMessageCodes.Heartbeat);
-                        _fakeServer.SendTo(incomingData.EndPoint, _writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+                        _fakeServer.SendTo(incomingData.EndPoint, _writer.AsArraySegment(), UdpProtocol.DeliveryMethod.Unreliable);
                         break;
                 }
             }

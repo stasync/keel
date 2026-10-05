@@ -67,7 +67,7 @@ namespace Keel.Networking.Tests
                             trackedClientConnections.Remove(connectionUid);
                         };
 
-                        client.Send(data: new byte[] { 1, 2, 3 }, UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+                        client.Send(data: new byte[] { 1, 2, 3 }, UdpProtocol.DeliveryMethod.Unreliable);
                     };
 
                     client.Connect(new IPEndPoint(localAddress, _server.Port));
