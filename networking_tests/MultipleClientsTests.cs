@@ -11,25 +11,25 @@ namespace Keel.Networking.Tests
         private const ushort PROTOCOL_KEY = 23;
 
         private readonly int _serverPort;
-        private readonly UdpFullProtocol _server;
-        private readonly UdpFullProtocol[] _clients = new UdpFullProtocol[8];
+        private readonly UdpProtocol _server;
+        private readonly UdpProtocol[] _clients = new UdpProtocol[8];
 
         public MultipleClientsTests()
         {
             const string encryptionKey = "c7fdcdc0-2489-4a5d-8932-e5e819e1add7";
             _serverPort = Utils.GetAvailableUdpPort();
-            _server = new UdpFullProtocol(_serverPort, protocolKey: PROTOCOL_KEY);
+            _server = new UdpProtocol(_serverPort, protocolKey: PROTOCOL_KEY);
 
             _server.RegisterDataTransferLayer(new PrefixDataTransferLayer());
             _server.RegisterDataTransferLayer(new PostfixDataTransferLayer());
             _server.RegisterDataTransferLayer(new DataTransferXorObfuscationLayer(encryptionKey));
 
-            _server.RegisterIncomingPacketSimulator(new SimulatePacketLossPercentage
+            _server.RegisterIncomingPacketSimulator(new PeriodicPacketLossSimulator
             {
                 PacketLossPercent = 25f
             });
-            _server.RegisterIncomingPacketSimulator(new SimulatePacketDuplicationByChance());
-            _server.RegisterIncomingPacketSimulator(new SimulatePacketDelay
+            _server.RegisterIncomingPacketSimulator(new RandomPacketDuplicationSimulator());
+            _server.RegisterIncomingPacketSimulator(new PacketDelaySimulator
             {
                 PacketMinDelayMs = 30f,
                 PacketMaxDelayMs = 150f,
@@ -38,18 +38,18 @@ namespace Keel.Networking.Tests
 
             for (var i = 0; i < _clients.Length; i++)
             {
-                _clients[i] = new UdpFullProtocol(port: 0, PROTOCOL_KEY);
+                _clients[i] = new UdpProtocol(port: 0, PROTOCOL_KEY);
 
                 // Should be reversed order on the client.
                 _clients[i].RegisterDataTransferLayer(new PrefixDataTransferLayer());
                 _clients[i].RegisterDataTransferLayer(new PostfixDataTransferLayer());
                 _clients[i].RegisterDataTransferLayer(new DataTransferXorObfuscationLayer(encryptionKey));
 
-                _clients[i].RegisterIncomingPacketSimulator(new SimulatePacketLossPercentage
+                _clients[i].RegisterIncomingPacketSimulator(new PeriodicPacketLossSimulator
                 {
                     PacketLossPercent = 25f
                 });
-                _clients[i].RegisterIncomingPacketSimulator(new SimulatePacketDelay
+                _clients[i].RegisterIncomingPacketSimulator(new PacketDelaySimulator
                 {
                     PacketMinDelayMs = 30f,
                     PacketMaxDelayMs = 150f,
@@ -79,7 +79,7 @@ namespace Keel.Networking.Tests
                 writer.SeekZero();
                 writer.WriteString(string.Format(requestStringPattern, i));
                 // Switch too unreliable to fail the test, due to assigned simulators.
-                _clients[i].SendTo(new IPEndPoint(localAddress, _serverPort), data: writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.ReliableOrdered);
+                _clients[i].SendTo(new IPEndPoint(localAddress, _serverPort), data: writer.AsArraySegment(), UdpProtocol.DeliveryMethod.ReliableOrdered);
             }
 
             var receivedResponseFromServer = new string[_clients.Length];
@@ -111,7 +111,7 @@ namespace Keel.Networking.Tests
                         var respondWriter = new NetWriter();
                         respondWriter.WriteString(string.Format(responsePattern, request));
 
-                        _server.SendTo(incomingData.EndPoint, data: respondWriter.AsArraySegment(), (UdpFullProtocol.DgramDeliveryMethod)incomingData.ProtocolPrefix);
+                        _server.SendTo(incomingData.EndPoint, data: respondWriter.AsArraySegment(), (UdpProtocol.DeliveryMethod)incomingData.Channel);
                     }
                 }
 

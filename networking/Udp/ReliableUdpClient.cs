@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace Keel.Networking.Udp
 {
     /// <summary>
-    ///  A high level client based on <see cref="UdpFullProtocol"/>.
+    ///  A high level client based on <see cref="UdpProtocol"/>.
     /// </summary>
     public sealed class ReliableUdpClient
     {
@@ -50,14 +50,14 @@ namespace Keel.Networking.Udp
         public event Action ConnectionFailed = delegate { };
         public event Action Disconnected = delegate { };
         public event Action ReliabilityFailure = delegate { };
-        public event Action<byte[], UdpFullProtocol.DgramDeliveryMethod> DataReceived = delegate { };
+        public event Action<byte[], UdpProtocol.DeliveryMethod> DataReceived = delegate { };
         public event Action HeartbeatSent = delegate { };
 
         public bool IsConnected => _connectionState != null;
         public uint ConnectionUid => IsConnected ? _connectionState.ConnectionUid : 0;
         public uint ValidationUid => IsConnected ? _connectionState.ValidationUid : 0;
 
-        private UdpFullProtocol _protocol;
+        private UdpProtocol _protocol;
         private ConnectionState _connectionState;
         private readonly NetWriter _dataWriter = new();
         private readonly NetReader _dataReader = new();
@@ -79,16 +79,16 @@ namespace Keel.Networking.Udp
             }
 
             _connectionState = null;
-            _protocol = new UdpFullProtocol(port: 0, protocolKey: 0);
+            _protocol = new UdpProtocol(port: 0, protocolKey: 0);
 
             _dataWriter.SeekZero();
             _dataWriter.WriteByte((byte)ReliableUdpServer.ClientMessageCodes.Connect);
             _dataWriter.WriteString(connectionData);
-            _protocol.SendTo(endPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+            _protocol.SendTo(endPoint, _dataWriter.AsArraySegment(), UdpProtocol.DeliveryMethod.Reliable);
             _connectionStartTime = DateTime.UtcNow;
         }
 
-        public void Send(ArraySegment<byte> data, UdpFullProtocol.DgramDeliveryMethod dgramDeliveryMethod)
+        public void Send(ArraySegment<byte> data, UdpProtocol.DeliveryMethod deliveryMethod)
         {
             EnsureValid();
 
@@ -104,7 +104,7 @@ namespace Keel.Networking.Udp
             _dataWriter.WritePackedUInt32(_connectionState.ValidationUid);
             _dataWriter.WriteByte(_connectionState.Slot);
             _dataWriter.WriteBytesAndSize(data);
-            _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), dgramDeliveryMethod);
+            _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), deliveryMethod);
         }
 
         public void Update()
@@ -153,7 +153,7 @@ namespace Keel.Networking.Udp
             // it is acked, and every copy is acked in turn, so the cost of a fixed heartbeat rate would scale
             // with latency. A lost heartbeat needs no recovery - the next one follows in
             // HEARTBEAT_SEND_TIMEOUT_MS, and HEARTBEAT_TIMEOUT_MS tolerates roughly 20 consecutive losses.
-            _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Unreliable);
+            _protocol.SendTo(_connectionState.ConnectionEndPoint, _dataWriter.AsArraySegment(), UdpProtocol.DeliveryMethod.Unreliable);
 
             HeartbeatSent();
         }
@@ -222,7 +222,7 @@ namespace Keel.Networking.Udp
                     if (_connectionState != null)
                     {
                         var payload = _dataReader.ReadBytesAndSize();
-                        DataReceived(payload, (UdpFullProtocol.DgramDeliveryMethod)incomingDataSnapshot.ProtocolPrefix);
+                        DataReceived(payload, (UdpProtocol.DeliveryMethod)incomingDataSnapshot.Channel);
                     }
 
                     break;
@@ -236,13 +236,13 @@ namespace Keel.Networking.Udp
             }
         }
 
-        public void RegisterIncomingPacketSimulator(UdpReliableProtocol.IncomingPacketSimulator value)
+        public void RegisterIncomingPacketSimulator(IncomingPacketSimulator value)
         {
             EnsureValid();
             _protocol.RegisterIncomingPacketSimulator(value);
         }
 
-        public void UnregisterIncomingPacketSimulator(UdpReliableProtocol.IncomingPacketSimulator value)
+        public void UnregisterIncomingPacketSimulator(IncomingPacketSimulator value)
         {
             EnsureValid();
             _protocol.UnregisterIncomingPacketSimulator(value);
@@ -254,13 +254,13 @@ namespace Keel.Networking.Udp
             _protocol.UnregisterAllIncomingPacketSimulators();
         }
 
-        public void RegisterDataTransferLayer(UdpReliableProtocol.DataTransferLayer value)
+        public void RegisterDataTransferLayer(DataTransferLayer value)
         {
             EnsureValid();
             _protocol.RegisterDataTransferLayer(value);
         }
 
-        public void UnregisterDataTransferLayer(UdpReliableProtocol.DataTransferLayer value)
+        public void UnregisterDataTransferLayer(DataTransferLayer value)
         {
             EnsureValid();
             _protocol.UnregisterDataTransferLayer(value);

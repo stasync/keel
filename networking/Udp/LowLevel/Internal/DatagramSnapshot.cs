@@ -8,9 +8,9 @@ namespace Keel.Networking.Udp.LowLevel.Internal
         internal readonly uint Uid;
         internal readonly IPEndPoint EndPoint;
         internal readonly ArraySegment<byte> Buffer;
-        internal readonly byte ProtocolPrefix;
+        internal readonly byte Channel;
 
-        internal DatagramSnapshot(uint uid, IPEndPoint endPoint, ArraySegment<byte> data, byte protocolPrefix)
+        internal DatagramSnapshot(uint uid, IPEndPoint endPoint, ArraySegment<byte> data, byte channel)
         {
             if (data.Count > MtuBuffer.SIZE)
                 throw new InvalidOperationException();
@@ -18,7 +18,7 @@ namespace Keel.Networking.Udp.LowLevel.Internal
             Uid = uid;
             EndPoint = endPoint;
             Buffer = MtuBuffer.Rent(data);
-            ProtocolPrefix = protocolPrefix;
+            Channel = channel;
         }
 
         internal void Dispose() =>

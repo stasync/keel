@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
 {
-    public sealed class DataTransferAmountCaptureLayer : UdpReliableProtocol.DataTransferLayer
+    public sealed class DataTransferAmountCaptureLayer : DataTransferLayer
     {
         public int BytesSent
         {

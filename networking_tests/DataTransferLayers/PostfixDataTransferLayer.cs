@@ -4,9 +4,9 @@ using System.Net;
 namespace Keel.Networking.Tests.DataTransferLayers
 {
     /// <summary>
-    /// A data transfer layer that adds prefix in font of the message.
+    /// A data transfer layer that adds postfix at the end of the message.
     /// </summary>
-    internal sealed class PostfixDataTransferLayer : UdpReliableProtocol.DataTransferLayer
+    internal sealed class PostfixDataTransferLayer : DataTransferLayer
     {
         private const byte POSTFIX = 69;
 
@@ -27,7 +27,7 @@ namespace Keel.Networking.Tests.DataTransferLayers
             var postfix = data[^1];
             Assert.Equal(POSTFIX, postfix);
 
-            // Remove prefix from the message.
+            // Remove postfix from the message.
             var newData = new byte[data.Count - 1];
             Buffer.BlockCopy(src: data.Array!, srcOffset: 0, dst: newData, dstOffset: 0, count: data.Count - 1);
 

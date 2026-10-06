@@ -79,7 +79,7 @@ namespace Keel.Networking.Tests
             // Delay only what the client receives, so the server side teardown is held for a known interval while
             // the client keeps heartbeat. Registered after Connect, which creates the protocol, but before
             // the first pump, so nothing has been received yet.
-            _client.RegisterIncomingPacketSimulator(new SimulatePacketDelay
+            _client.RegisterIncomingPacketSimulator(new PacketDelaySimulator
             {
                 PacketMaxDelayMs = 300,
                 PacketMinDelayMs = 300
@@ -91,7 +91,7 @@ namespace Keel.Networking.Tests
             Assert.Empty(_unexpectedClientActions);
         }
 
-        private void PumpUntil(Func<bool> condition, uint millisecondsTimeout, UdpFullProtocol alsoPoll = null)
+        private void PumpUntil(Func<bool> condition, uint millisecondsTimeout, UdpProtocol alsoPoll = null)
         {
             var startTime = DateTime.UtcNow;
             while (!condition() && (DateTime.UtcNow - startTime).TotalMilliseconds < millisecondsTimeout)
@@ -105,7 +105,7 @@ namespace Keel.Networking.Tests
                 Tick(alsoPoll: null);
         }
 
-        private void Tick(UdpFullProtocol alsoPoll)
+        private void Tick(UdpProtocol alsoPoll)
         {
             Thread.Sleep(millisecondsTimeout: 10);
 

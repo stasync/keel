@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
 {
-    public sealed class DataTransferXorObfuscationLayer : UdpReliableProtocol.DataTransferLayer
+    public sealed class DataTransferXorObfuscationLayer : DataTransferLayer
     {
         private readonly byte[] _keyBytes;
 
@@ -12,7 +12,7 @@ namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
             _keyBytes = string.IsNullOrWhiteSpace(key) ? null : System.Text.Encoding.UTF8.GetBytes(key);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void EncryptDecryptXor(ArraySegment<byte> data)
+        private void ApplyXor(ArraySegment<byte> data)
         {
             if (_keyBytes == null)
                 return;
@@ -22,9 +22,9 @@ namespace Keel.Networking.Udp.LowLevel.DataTransferLayers
         }
 
         public override void ProcessOutgoingData(IPEndPoint targetEndPoint, ref ArraySegment<byte> data) =>
-            EncryptDecryptXor(data);
+            ApplyXor(data);
 
         public override void ProcessIncomingData(IPEndPoint senderEndPoint, ref ArraySegment<byte> data) =>
-            EncryptDecryptXor(data);
+            ApplyXor(data);
     }
 }

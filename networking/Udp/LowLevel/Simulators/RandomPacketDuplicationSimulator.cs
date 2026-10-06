@@ -4,11 +4,11 @@ using System.Net;
 
 namespace Keel.Networking.Udp.LowLevel.Simulators
 {
-    public sealed class SimulatePacketDuplicationByChance : UdpReliableProtocol.IncomingPacketSimulator
+    public sealed class RandomPacketDuplicationSimulator : IncomingPacketSimulator
     {
         /// <summary>
         /// A chance of every packet to be duplicated.
-        /// A drop chance, should be in [0, 100] range.
+        /// A duplication chance, should be in [0, 100] range.
         /// </summary>
         public float PacketDuplicationChancePercent
         {

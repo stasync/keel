@@ -8,14 +8,14 @@ namespace Keel.Networking.Tests
         private const ushort PROTOCOL_KEY = 23;
 
         private readonly int _serverPort;
-        private readonly UdpFullProtocol _server;
-        private readonly UdpFullProtocol _client;
+        private readonly UdpProtocol _server;
+        private readonly UdpProtocol _client;
 
         public SingleClientTests()
         {
             _serverPort = Utils.GetAvailableUdpPort();
-            _server = new UdpFullProtocol(_serverPort, PROTOCOL_KEY);
-            _client = new UdpFullProtocol(port: 0, PROTOCOL_KEY);
+            _server = new UdpProtocol(_serverPort, PROTOCOL_KEY);
+            _client = new UdpProtocol(port: 0, PROTOCOL_KEY);
         }
 
         public void Dispose()
@@ -38,7 +38,7 @@ namespace Keel.Networking.Tests
                 writer.SeekZero();
                 writer.WriteString(requestString);
 
-                _client.SendTo(new IPEndPoint(localAddress, _serverPort), data: writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.Reliable);
+                _client.SendTo(new IPEndPoint(localAddress, _serverPort), data: writer.AsArraySegment(), UdpProtocol.DeliveryMethod.Reliable);
             }
 
             var receivedResponseFromServer = string.Empty;
@@ -61,7 +61,7 @@ namespace Keel.Networking.Tests
                         var respondWriter = new NetWriter();
                         respondWriter.WriteString(string.Format(responsePattern, request));
 
-                        _server.SendTo(incomingData.EndPoint, data: respondWriter.AsArraySegment(), (UdpFullProtocol.DgramDeliveryMethod)incomingData.ProtocolPrefix);
+                        _server.SendTo(incomingData.EndPoint, data: respondWriter.AsArraySegment(), (UdpProtocol.DeliveryMethod)incomingData.Channel);
                     }
                 }
 

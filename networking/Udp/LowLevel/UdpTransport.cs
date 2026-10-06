@@ -9,11 +9,12 @@ using System.Runtime.InteropServices;
 namespace Keel.Networking.Udp.LowLevel
 {
     /// <summary>
-    /// Basic (un)reliable upd protocol.
+    /// Basic (un)reliable UDP transport: owns the socket and resends unacknowledged datagrams.
+    /// Channel 0 is unreliable, every other channel is reliable and has its own datagram uids.
     /// !!! May receive duplicated data due to reliability.
     /// !!! May receive unordered data.
     /// </summary>
-    public sealed partial class UdpReliableProtocol : IDisposable
+    public sealed partial class UdpTransport : IDisposable
     {
         /// <summary>
         /// How long an unacknowledged datagram keeps being retransmitted before it is given up on and reported
@@ -45,12 +46,12 @@ namespace Keel.Networking.Udp.LowLevel
         /// </summary>
         private const double MAX_RESEND_DELAY_MS = 1000;
 
-        public event Action<IPEndPoint> FailedToProcessDgram = delegate { };
+        public event Action<IPEndPoint> FailedToProcessDatagram = delegate { };
 
         public int ReliabilityFailureCount { get; private set; }
 
         private readonly Socket _socket;
-        private readonly ProtocolStateCollectionPerEndPoint _dgramStatePerEndPoint;
+        private readonly ChannelStateCollectionPerEndPoint _channelStatesPerEndPoint;
         private readonly Queue<IncomingDataSnapshot> _incomingPayloadQueue = new();
         private readonly byte[] _incomingBuffer = new byte[MtuBuffer.SIZE];
         private readonly byte[] _outgoingBuffer = new byte[MtuBuffer.SIZE];
@@ -61,9 +62,9 @@ namespace Keel.Networking.Udp.LowLevel
         private DataTransferLayerPipeline _dataTransferLayerPipeline;
         private IpAddressBlacklist _ipAddressBlacklist;
 
-        public UdpReliableProtocol(int port, ushort protocolKey)
+        public UdpTransport(int port, ushort protocolKey)
         {
-            _dgramStatePerEndPoint = new ProtocolStateCollectionPerEndPoint(OnResendRequired, OnReliabilityFailure);
+            _channelStatesPerEndPoint = new ChannelStateCollectionPerEndPoint(OnResendRequired, OnReliabilityFailure);
 
             _socket = UdpUtils.CreateUdpSocket();
             if (port != 0)
@@ -71,16 +72,16 @@ namespace Keel.Networking.Udp.LowLevel
 
             _protocolKey = protocolKey;
 
-            // Determining protocol header size by just writing the reader. Parameters don't matter here.
+            // Determining protocol header size by just writing the header. Parameters don't matter here.
             // The value is used for validation on the higher abstraction level.
-            _protocolHeaderSize = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, datagramType: default, protocolKey: 0, protocolPrefix: 0, dgramUid: 0);
+            _protocolHeaderSize = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, datagramType: default, protocolKey: 0, channel: 0, datagramUid: 0);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Poll()
         {
-            ReceiveDgram();
-            _dgramStatePerEndPoint.Update();
+            ReceiveDatagram();
+            _channelStatesPerEndPoint.Update();
             _ipAddressBlacklist?.Update();
         }
 
@@ -97,13 +98,13 @@ namespace Keel.Networking.Udp.LowLevel
             data.Count + _protocolHeaderSize <= MtuBuffer.SIZE;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SendTo(IPEndPoint endPoint, ArraySegment<byte> data, byte protocolPrefix)
+        public void SendTo(IPEndPoint endPoint, ArraySegment<byte> data, byte channel)
         {
             if (!ValidateDataSize(data))
                 throw new InvalidOperationException($"Mtu buffer of size '{MtuBuffer.SIZE}' with maximum payload size of '{MtuBuffer.SIZE - _protocolHeaderSize}' overflow with '{data.Count}'.");
 
-            var dgramUid = _dgramStatePerEndPoint.ProcessOutgoingDatagram(endPoint, protocolPrefix, data);
-            SendPayloadTo_Internal(endPoint, data, dgramUid, protocolPrefix);
+            var datagramUid = _channelStatesPerEndPoint.ProcessOutgoingDatagram(endPoint, channel, data);
+            SendPayloadTo_Internal(endPoint, data, datagramUid, channel);
         }
 
         private void OnReliabilityFailure(IPEndPoint endPoint)
@@ -113,9 +114,9 @@ namespace Keel.Networking.Udp.LowLevel
         }
 
         private void OnResendRequired(DatagramSnapshot pendingSnapshot) =>
-            SendPayloadTo_Internal(pendingSnapshot.EndPoint, pendingSnapshot.Buffer, pendingSnapshot.Uid, pendingSnapshot.ProtocolPrefix);
+            SendPayloadTo_Internal(pendingSnapshot.EndPoint, pendingSnapshot.Buffer, pendingSnapshot.Uid, pendingSnapshot.Channel);
 
-        private void ReceiveDgram()
+        private void ReceiveDatagram()
         {
             if (!_socket.IsBound)
                 return;
@@ -126,37 +127,37 @@ namespace Keel.Networking.Udp.LowLevel
                 var received = UdpUtils.ReceiveMtuFrom(_socket, _incomingBuffer, ref senderEndPoint);
 
                 // Nothing has been received, or a socket exception was thrown.
-                // NOTE: We have to continue the loop here, not brake.
+                // NOTE: We have to continue the loop here, not break.
                 if (received == 0)
                     continue;
 
-                var senderIpEndpoint = (IPEndPoint)senderEndPoint;
+                var senderIpEndPoint = (IPEndPoint)senderEndPoint;
 
                 // Making an initial data slice and pass it through to the layering pipeline.
                 var receivedDataSegment = new ArraySegment<byte>(_incomingBuffer, offset: 0, count: received);
-                _dataTransferLayerPipeline?.ProcessIncomingData(senderIpEndpoint, ref receivedDataSegment);
+                _dataTransferLayerPipeline?.ProcessIncomingData(senderIpEndPoint, ref receivedDataSegment);
 
-                if (IsBlacklisted(senderIpEndpoint.Address))
+                if (IsBlacklisted(senderIpEndPoint.Address))
                     continue;
 
                 if (_incomingPacketSimulationPipeline != null)
                 {
-                    // Slow track - though simulators.
+                    // Slow track - through simulators.
                     // We have to copy the data here, as the simulator may aggregate packages and 'receivedDataSegment' uses the shared incoming buffer.
                     var dataCopy = new byte[receivedDataSegment.Count];
                     Buffer.BlockCopy(src: receivedDataSegment.Array!, srcOffset: receivedDataSegment.Offset, dst: dataCopy, dstOffset: 0, count: receivedDataSegment.Count);
 
                     // Dispatch data copy to the simulation pipeline.
-                    _incomingPacketSimulationPipeline.OnDataReceived(dataCopy, senderIpEndpoint);
+                    _incomingPacketSimulationPipeline.OnDataReceived(dataCopy, senderIpEndPoint);
                 }
                 else
                 {
                     // Fast track - packet allowed to be processed as there are no simulators declared.
-                    ProcessIncomingData(senderIpEndpoint, receivedDataSegment);
+                    ProcessIncomingData(senderIpEndPoint, receivedDataSegment);
                 }
             }
 
-            // Receive packets form the simulator(s).
+            // Receive packets from the simulator(s).
             if (_incomingPacketSimulationPipeline != null)
             {
                 // Update the simulation pipeline.
@@ -171,7 +172,7 @@ namespace Keel.Networking.Udp.LowLevel
             }
         }
 
-        private void ProcessIncomingData(IPEndPoint senderIpEndpoint, in ArraySegment<byte> data)
+        private void ProcessIncomingData(IPEndPoint senderIpEndPoint, in ArraySegment<byte> data)
         {
             if (data.Count == 0)
                 throw new InvalidOperationException();
@@ -179,7 +180,7 @@ namespace Keel.Networking.Udp.LowLevel
             // Validate minimum packet size to prevent overflow when reading protocol header.
             if (data.Count < _protocolHeaderSize)
             {
-                FailedToProcessDgram(senderIpEndpoint);
+                FailedToProcessDatagram(senderIpEndPoint);
                 return;
             }
 
@@ -192,63 +193,63 @@ namespace Keel.Networking.Udp.LowLevel
             if (remoteProtocolKey != _protocolKey)
                 return;
 
-            var dgramType = (DatagramType)data[protocolOffset++];
-            var protocolPrefix = data[protocolOffset++];
+            var datagramType = (DatagramType)data[protocolOffset++];
+            var channel = data[protocolOffset++];
 
-            var dgramUidAsBytes = default(UIntByteUnion);
-            dgramUidAsBytes.Byte0 = data[protocolOffset++];
-            dgramUidAsBytes.Byte1 = data[protocolOffset++];
-            dgramUidAsBytes.Byte2 = data[protocolOffset++];
-            dgramUidAsBytes.Byte3 = data[protocolOffset++];
+            var datagramUidAsBytes = default(UIntByteUnion);
+            datagramUidAsBytes.Byte0 = data[protocolOffset++];
+            datagramUidAsBytes.Byte1 = data[protocolOffset++];
+            datagramUidAsBytes.Byte2 = data[protocolOffset++];
+            datagramUidAsBytes.Byte3 = data[protocolOffset++];
 
-            var dgramUid = dgramUidAsBytes.UInt;
+            var datagramUid = datagramUidAsBytes.UInt;
 
-            switch (dgramType)
+            switch (datagramType)
             {
                 case DatagramType.Payload:
                     {
-                        // Payload received, send ack in case dgram id is valid.
-                        // protocolPrefix should > 0, meaning that we expect reliable delivery.
-                        if (protocolPrefix > 0)
-                            SendAckTo_Internal(senderIpEndpoint, dgramUid, protocolPrefix);
+                        // Payload received, send ack in case datagram id is valid.
+                        // Channel > 0 means that reliable delivery is expected.
+                        if (channel > 0)
+                            SendAckTo_Internal(senderIpEndPoint, datagramUid, channel);
 
                         // Validate payload size to prevent overflow.
                         var payloadSize = data.Count - protocolOffset;
                         if (payloadSize < 0)
                         {
-                            FailedToProcessDgram(senderIpEndpoint);
+                            FailedToProcessDatagram(senderIpEndPoint);
                             return;
                         }
 
-                        // Create a payload instance. We have to copy the data here as its unknown when the data will be consumed (form the outgoing queue by consumer).
+                        // Create a payload instance. We have to copy the data here as it is unknown when the data will be consumed (from the incoming queue by the consumer).
                         var payload = new byte[payloadSize];
                         Buffer.BlockCopy(src: data.Array!, srcOffset: data.Offset + protocolOffset, dst: payload, dstOffset: 0, count: payload.Length);
 
-                        // Append the data snapshot the then incoming data queue.
-                        _incomingPayloadQueue.Enqueue(new IncomingDataSnapshot(dgramUid, senderIpEndpoint, payload, protocolPrefix));
+                        // Append the data snapshot to the incoming data queue.
+                        _incomingPayloadQueue.Enqueue(new IncomingDataSnapshot(datagramUid, senderIpEndPoint, payload, channel));
                     }
                     break;
 
                 case DatagramType.Ack:
                     {
-                        // Ack is always being received via unreliable protocol with prefix 0, meaning that we should access the original prefix.
+                        // Ack is always received on the unreliable channel 0, so the channel of the acknowledged datagram is read from the payload.
                         // Look at SendAckTo_Internal() for clarifications.
-                        var originalProtocolPrefix = data[protocolOffset];
+                        var originalChannel = data[protocolOffset];
 
                         // Release pending packets.
-                        _dgramStatePerEndPoint.TreReleasePendingOutgoingDgram(senderIpEndpoint, dgramUid, originalProtocolPrefix);
+                        _channelStatesPerEndPoint.ReleasePendingOutgoingDatagram(senderIpEndPoint, datagramUid, originalChannel);
                     }
                     break;
 
                 default:
-                    FailedToProcessDgram(senderIpEndpoint);
+                    FailedToProcessDatagram(senderIpEndPoint);
                     break;
             }
         }
 
-        private void SendPayloadTo_Internal(IPEndPoint endPoint, in ArraySegment<byte> data, uint dgramUid, byte protocolPrefix)
+        private void SendPayloadTo_Internal(IPEndPoint endPoint, in ArraySegment<byte> data, uint datagramUid, byte channel)
         {
-            var protocolHeaderCount = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, DatagramType.Payload, _protocolKey, protocolPrefix, dgramUid);
+            var protocolHeaderCount = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, DatagramType.Payload, _protocolKey, channel, datagramUid);
             Buffer.BlockCopy(src: data.Array!, srcOffset: data.Offset, dst: _outgoingBuffer, dstOffset: protocolHeaderCount, count: data.Count);
 
             var dataSegment = new ArraySegment<byte>(_outgoingBuffer, offset: 0, count: protocolHeaderCount + data.Count);
@@ -256,10 +257,10 @@ namespace Keel.Networking.Udp.LowLevel
             UdpUtils.SendMtu(_socket, endPoint, data: dataSegment);
         }
 
-        private void SendAckTo_Internal(IPEndPoint endPoint, uint dgramUid, byte originalProtocolPrefix)
+        private void SendAckTo_Internal(IPEndPoint endPoint, uint datagramUid, byte originalChannel)
         {
-            var protocolHeaderCount = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, DatagramType.Ack, _protocolKey, protocolPrefix: 0, dgramUid);
-            _outgoingBuffer[protocolHeaderCount++] = originalProtocolPrefix;
+            var protocolHeaderCount = PrepareOutgoingBufferProtocolHeader(_outgoingBuffer, DatagramType.Ack, _protocolKey, channel: 0, datagramUid);
+            _outgoingBuffer[protocolHeaderCount++] = originalChannel;
 
             var dataSegment = new ArraySegment<byte>(_outgoingBuffer, offset: 0, count: protocolHeaderCount);
             _dataTransferLayerPipeline?.ProcessOutgoingData(endPoint, ref dataSegment);
@@ -281,19 +282,19 @@ namespace Keel.Networking.Udp.LowLevel
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ClearEndpointData(IPEndPoint endPoint) =>
-            _dgramStatePerEndPoint.ClearEndpointData(endPoint);
+        public void RemoveEndPointData(IPEndPoint endPoint) =>
+            _channelStatesPerEndPoint.RemoveEndPointData(endPoint);
 
         public void Dispose()
         {
             UdpUtils.CloseSocket(_socket);
 
             _incomingPayloadQueue.Clear();
-            _dgramStatePerEndPoint.Clear();
+            _channelStatesPerEndPoint.Clear();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int PrepareOutgoingBufferProtocolHeader(byte[] buffer, DatagramType datagramType, ushort protocolKey, byte protocolPrefix, uint dgramUid)
+        private static int PrepareOutgoingBufferProtocolHeader(byte[] buffer, DatagramType datagramType, ushort protocolKey, byte channel, uint datagramUid)
         {
             var protocolOffset = 0;
             var protocolKeyAsBytes = default(UShortByteUnion);
@@ -303,15 +304,15 @@ namespace Keel.Networking.Udp.LowLevel
             buffer[protocolOffset++] = protocolKeyAsBytes.Byte1;
 
             buffer[protocolOffset++] = (byte)datagramType;
-            buffer[protocolOffset++] = protocolPrefix;
+            buffer[protocolOffset++] = channel;
 
-            var dgramUidAsBytes = default(UIntByteUnion);
-            dgramUidAsBytes.UInt = dgramUid;
+            var datagramUidAsBytes = default(UIntByteUnion);
+            datagramUidAsBytes.UInt = datagramUid;
 
-            buffer[protocolOffset++] = dgramUidAsBytes.Byte0;
-            buffer[protocolOffset++] = dgramUidAsBytes.Byte1;
-            buffer[protocolOffset++] = dgramUidAsBytes.Byte2;
-            buffer[protocolOffset++] = dgramUidAsBytes.Byte3;
+            buffer[protocolOffset++] = datagramUidAsBytes.Byte0;
+            buffer[protocolOffset++] = datagramUidAsBytes.Byte1;
+            buffer[protocolOffset++] = datagramUidAsBytes.Byte2;
+            buffer[protocolOffset++] = datagramUidAsBytes.Byte3;
 
             return protocolOffset;
         }

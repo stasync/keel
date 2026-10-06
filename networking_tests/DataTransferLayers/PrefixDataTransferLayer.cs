@@ -4,9 +4,9 @@ using System.Net;
 namespace Keel.Networking.Tests.DataTransferLayers
 {
     /// <summary>
-    /// A data transfer layer that adds prefix in font of the message.
+    /// A data transfer layer that adds prefix in front of the message.
     /// </summary>
-    internal sealed class PrefixDataTransferLayer : UdpReliableProtocol.DataTransferLayer
+    internal sealed class PrefixDataTransferLayer : DataTransferLayer
     {
         private const byte PREFIX = 69;
 

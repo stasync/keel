@@ -9,7 +9,7 @@ namespace Keel.Networking.Tests
     /// <summary>
     /// Heartbeats are periodic, so they must not be sent reliably.
     ///
-    /// ProtocolState.Update() resends every unacked datagram on every Poll tick with no backoff, so a reliable
+    /// ChannelState.Update() resends every unacked datagram on every Poll tick with no backoff, so a reliable
     /// heartbeat is retransmitted until it is acked - and every copy is acked in turn. That makes the cost of
     /// carrying a fixed 10 heartbeats/sec scale with latency, which is the opposite of what a keepalive should
     /// do. A lost unreliable heartbeat needs no recovery: the next one follows in HEARTBEAT_SEND_TIMEOUT_MS,
@@ -138,14 +138,14 @@ namespace Keel.Networking.Tests
             Assert.True(_client.IsConnected, "Client failed to connect.");
         }
 
-        private static SimulatePacketDelay FixedDelay(int oneWayDelayMs) =>
+        private static PacketDelaySimulator FixedDelay(int oneWayDelayMs) =>
             new()
             {
                 PacketMaxDelayMs = oneWayDelayMs,
                 PacketMinDelayMs = oneWayDelayMs
             };
 
-        private static SimulatePacketLossPercentage Loss(float lossPercent) =>
+        private static PeriodicPacketLossSimulator Loss(float lossPercent) =>
             new() { PacketLossPercent = lossPercent };
 
         private void PumpUntil(Func<bool> condition, uint millisecondsTimeout)

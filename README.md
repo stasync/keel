@@ -87,7 +87,7 @@ var client = new ReliableUdpClient();
 client.Connected += () =>
 {
     Console.WriteLine($"Connected with id {client.ConnectionUid}");
-    client.Send(new byte[] { 1, 2, 3 }, UdpFullProtocol.DgramDeliveryMethod.Reliable);
+    client.Send(new byte[] { 1, 2, 3 }, UdpProtocol.DeliveryMethod.Reliable);
 };
 
 client.DataReceived += (data, deliveryMethod) =>
@@ -117,7 +117,7 @@ writer.WriteInt32(42);           // player id
 writer.WriteString("Alice");     // name
 writer.WriteSingle(3.5f);        // speed
 
-client.Send(writer.AsArraySegment(), UdpFullProtocol.DgramDeliveryMethod.ReliableOrdered);
+client.Send(writer.AsArraySegment(), UdpProtocol.DeliveryMethod.ReliableOrdered);
 ```
 
 ```csharp
@@ -156,8 +156,8 @@ Everything works on your local machine, but real networks lose and delay packets
 ```csharp
 using Keel.Networking.Udp.LowLevel.Simulators;
 
-client.RegisterIncomingPacketSimulator(new SimulatePacketLossByChance { PacketLossChancePercent = 5 });
-client.RegisterIncomingPacketSimulator(new SimulatePacketDelay { PacketMinDelayMs = 50, PacketMaxDelayMs = 150 });
+client.RegisterIncomingPacketSimulator(new RandomPacketLossSimulator { PacketLossChancePercent = 5 });
+client.RegisterIncomingPacketSimulator(new PacketDelaySimulator { PacketMinDelayMs = 50, PacketMaxDelayMs = 150 });
 ```
 
 There are also simulators for duplicated packets and for dropping everything, to test disconnects.
@@ -176,7 +176,7 @@ client.RegisterDataTransferLayer(traffic);
 Console.WriteLine($"Sent {traffic.BytesSent} bytes in {traffic.PacketsSent} packets");
 ```
 
-To write your own layer, inherit from `UdpReliableProtocol.DataTransferLayer`.
+To write your own layer, inherit from `DataTransferLayer` in `Keel.Networking.Udp.LowLevel`.
 
 ## Dependency Injection
 

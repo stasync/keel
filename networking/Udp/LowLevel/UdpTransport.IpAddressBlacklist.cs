@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 namespace Keel.Networking.Udp.LowLevel
 {
-    public sealed partial class UdpReliableProtocol
+    public sealed partial class UdpTransport
     {
         /// <summary>
         /// Keeps temporary banned/restricted (for what ever reason) ip addresses.
