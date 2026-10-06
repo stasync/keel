@@ -24,12 +24,12 @@ namespace Keel.Networking.Tests
             _server.RegisterDataTransferLayer(new PostfixDataTransferLayer());
             _server.RegisterDataTransferLayer(new DataTransferXorObfuscationLayer(encryptionKey));
 
-            _server.RegisterIncomingPacketSimulator(new SimulatePacketLossPercentage
+            _server.RegisterIncomingPacketSimulator(new PeriodicPacketLossSimulator
             {
                 PacketLossPercent = 25f
             });
-            _server.RegisterIncomingPacketSimulator(new SimulatePacketDuplicationByChance());
-            _server.RegisterIncomingPacketSimulator(new SimulatePacketDelay
+            _server.RegisterIncomingPacketSimulator(new RandomPacketDuplicationSimulator());
+            _server.RegisterIncomingPacketSimulator(new PacketDelaySimulator
             {
                 PacketMinDelayMs = 30f,
                 PacketMaxDelayMs = 150f,
@@ -45,11 +45,11 @@ namespace Keel.Networking.Tests
                 _clients[i].RegisterDataTransferLayer(new PostfixDataTransferLayer());
                 _clients[i].RegisterDataTransferLayer(new DataTransferXorObfuscationLayer(encryptionKey));
 
-                _clients[i].RegisterIncomingPacketSimulator(new SimulatePacketLossPercentage
+                _clients[i].RegisterIncomingPacketSimulator(new PeriodicPacketLossSimulator
                 {
                     PacketLossPercent = 25f
                 });
-                _clients[i].RegisterIncomingPacketSimulator(new SimulatePacketDelay
+                _clients[i].RegisterIncomingPacketSimulator(new PacketDelaySimulator
                 {
                     PacketMinDelayMs = 30f,
                     PacketMaxDelayMs = 150f,

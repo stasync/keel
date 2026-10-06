@@ -410,7 +410,7 @@ namespace Keel.Networking.Udp
                 Logger.LogError($"[{GetType().FullName}] Sender address '{address}' will be added to blacklist for '{millisecondsToAdd}ms'. Reason: {reasonError}.");
         }
 
-        public void TryAddAddressToBlacklist(IPAddress address, int millisecondsToAdd, string reasonError = null)
+        public void AddAddressToBlacklistIfAbsent(IPAddress address, int millisecondsToAdd, string reasonError = null)
         {
             EnsureValid();
 

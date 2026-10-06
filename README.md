@@ -156,8 +156,8 @@ Everything works on your local machine, but real networks lose and delay packets
 ```csharp
 using Keel.Networking.Udp.LowLevel.Simulators;
 
-client.RegisterIncomingPacketSimulator(new SimulatePacketLossByChance { PacketLossChancePercent = 5 });
-client.RegisterIncomingPacketSimulator(new SimulatePacketDelay { PacketMinDelayMs = 50, PacketMaxDelayMs = 150 });
+client.RegisterIncomingPacketSimulator(new RandomPacketLossSimulator { PacketLossChancePercent = 5 });
+client.RegisterIncomingPacketSimulator(new PacketDelaySimulator { PacketMinDelayMs = 50, PacketMaxDelayMs = 150 });
 ```
 
 There are also simulators for duplicated packets and for dropping everything, to test disconnects.

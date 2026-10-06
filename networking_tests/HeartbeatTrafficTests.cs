@@ -138,14 +138,14 @@ namespace Keel.Networking.Tests
             Assert.True(_client.IsConnected, "Client failed to connect.");
         }
 
-        private static SimulatePacketDelay FixedDelay(int oneWayDelayMs) =>
+        private static PacketDelaySimulator FixedDelay(int oneWayDelayMs) =>
             new()
             {
                 PacketMaxDelayMs = oneWayDelayMs,
                 PacketMinDelayMs = oneWayDelayMs
             };
 
-        private static SimulatePacketLossPercentage Loss(float lossPercent) =>
+        private static PeriodicPacketLossSimulator Loss(float lossPercent) =>
             new() { PacketLossPercent = lossPercent };
 
         private void PumpUntil(Func<bool> condition, uint millisecondsTimeout)

@@ -4,10 +4,10 @@ using System.Net;
 
 namespace Keel.Networking.Udp.LowLevel.Simulators
 {
-    public sealed class SimulatePacketDelay : IncomingPacketSimulator
+    public sealed class PacketDelaySimulator : IncomingPacketSimulator
     {
         /// <summary>
-        /// Desired packet delay in milliseconds.
+        /// Minimum packet delay in milliseconds.
         /// </summary>
         public float PacketMinDelayMs
         {
@@ -16,6 +16,9 @@ namespace Keel.Networking.Udp.LowLevel.Simulators
         }
         private float _packetMinDelayMs = 100f;
 
+        /// <summary>
+        /// Maximum packet delay in milliseconds. Each packet is delayed by a random value between the minimum and this.
+        /// </summary>
         public float PacketMaxDelayMs
         {
             get => _packetMaxDelayMs;

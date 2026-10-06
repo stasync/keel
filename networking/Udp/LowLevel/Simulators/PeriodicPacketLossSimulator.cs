@@ -4,15 +4,15 @@ using System.Net;
 
 namespace Keel.Networking.Udp.LowLevel.Simulators
 {
-    public sealed class SimulatePacketLossPercentage : IncomingPacketSimulator
+    public sealed class PeriodicPacketLossSimulator : IncomingPacketSimulator
     {
         /// <summary>
         /// A packet loss percentage, should be in [0, 100] range.
         /// For example:
-        /// 0.2 - every 500 packet will be dropped.
-        /// 5 - every 20 packet will be dropped.
-        /// 10 - every 10 packet will be dropped.
-        /// 50 - every 2 packet will be dropped.
+        /// 0.2 - every 500th packet will be dropped.
+        /// 5 - every 20th packet will be dropped.
+        /// 10 - every 10th packet will be dropped.
+        /// 50 - every 2nd packet will be dropped.
         /// </summary>
         public float PacketLossPercent { get; set; } = 10f;
 

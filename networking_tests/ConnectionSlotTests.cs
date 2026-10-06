@@ -79,7 +79,7 @@ namespace Keel.Networking.Tests
             // Delay only what the client receives, so the server side teardown is held for a known interval while
             // the client keeps heartbeat. Registered after Connect, which creates the protocol, but before
             // the first pump, so nothing has been received yet.
-            _client.RegisterIncomingPacketSimulator(new SimulatePacketDelay
+            _client.RegisterIncomingPacketSimulator(new PacketDelaySimulator
             {
                 PacketMaxDelayMs = 300,
                 PacketMinDelayMs = 300
