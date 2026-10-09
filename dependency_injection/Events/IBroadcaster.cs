@@ -10,14 +10,14 @@ namespace Keel.DependencyInjection.Events
         void RegisterObject(object targetObject);
         void UnregisterObject(object targetObject);
 
-        void AddListener(ushort eventCode, Action<object[]> listener);
-        void AddListener(int channel, ushort eventCode, Action<object[]> listener);
+        void AddListener<T>(Action<T> listener) where T : struct;
+        void AddListener<T>(Action<T> listener, int channel) where T : struct;
 
-        void RemoveListener(ushort eventCode, Action<object[]> listener);
-        void RemoveListener(int channel, ushort eventCode, Action<object[]> listener);
+        void RemoveListener<T>(Action<T> listener) where T : struct;
+        void RemoveListener<T>(Action<T> listener, int channel) where T : struct;
 
-        bool Invoke(ushort eventCode, bool requireReceiver, params object[] args);
-        bool Invoke(int channel, ushort eventCode, bool requireReceiver, params object[] args);
+        bool Invoke<T>(T eventData, bool requireReceiver = false) where T : struct;
+        bool Invoke<T>(T eventData, int channel, bool requireReceiver = false) where T : struct;
 
         void Clear();
     }
