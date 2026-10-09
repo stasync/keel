@@ -547,21 +547,19 @@ namespace Keel.DependencyInjection.Tests
         }
 
         [Fact]
-        public void Test_ThrowingListener_IsLogged_AndDoesNotStopOthers()
+        public void Test_ThrowingListener_ExceptionReachesCaller()
         {
-            const string failure = "Listener failure from " + nameof(Test_ThrowingListener_IsLogged_AndDoesNotStopOthers);
             var broadcaster = new Broadcaster();
             var calls = new List<string>();
 
             broadcaster.AddListener<TextEvent>(_ => calls.Add("First"));
-            broadcaster.AddListener<TextEvent>(_ => throw new InvalidOperationException(failure));
+            broadcaster.AddListener<TextEvent>(_ => throw new InvalidOperationException("Listener failure"));
             broadcaster.AddListener<TextEvent>(_ => calls.Add("Third"));
 
-            var exceptions = CaptureLogs(LogLevel.Exception, failure, () =>
-                Assert.True(broadcaster.Invoke(new TextEvent("Dispatch"))));
+            Assert.Throws<InvalidOperationException>(() => broadcaster.Invoke(new TextEvent("Dispatch")));
 
-            Assert.Equal(["First", "Third"], calls);
-            Assert.Single(exceptions);
+            // Fail fast: the listeners after the throwing one don't run in that dispatch.
+            Assert.Equal(["First"], calls);
         }
 
         [Fact]

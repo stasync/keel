@@ -8,12 +8,12 @@ namespace Keel.DependencyInjection.Events.Internal
 {
     internal sealed class EventListenerMethod
     {
-        public readonly MethodInfo Method;
-        public readonly Type EventType;
-        public readonly Type DelegateType;
-        public readonly int Channel;
+        internal readonly MethodInfo Method;
+        internal readonly Type EventType;
+        internal readonly Type DelegateType;
+        internal readonly int Channel;
 
-        public EventListenerMethod(MethodInfo method, Type eventType, int channel)
+        internal EventListenerMethod(MethodInfo method, Type eventType, int channel)
         {
             Method = method;
             EventType = eventType;
@@ -21,7 +21,7 @@ namespace Keel.DependencyInjection.Events.Internal
             Channel = channel;
         }
 
-        public Delegate CreateDelegate(object target) =>
+        internal Delegate CreateDelegate(object target) =>
             Method.CreateDelegate(DelegateType, target);
     }
 

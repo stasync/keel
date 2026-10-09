@@ -306,7 +306,7 @@ public readonly record struct PlayerJoined(string Name, int Level);
 
 On C# 9 (for example in Unity) there is no `record struct`, so declare the event as a plain `readonly struct` with a constructor. Give every event its own struct rather than using a primitive such as `int` or `bool`. The type is what identifies the event, so every `int` sent would reach every `int` listener.
 
-The event is passed to listeners by value, with no arrays and no boxing, and the compiler checks its fields on both sides. `Invoke` returns whether anyone was listening. Set `requireReceiver: true` if nobody listening would be a mistake. An error is then logged whenever an event goes unheard. If a listener throws, the exception is logged and the remaining listeners still run.
+The event is passed to listeners by value, with no arrays and no boxing, and the compiler checks its fields on both sides. `Invoke` returns whether anyone was listening. Set `requireReceiver: true` if nobody listening would be a mistake. An error is then logged whenever an event goes unheard. If a listener throws, the exception reaches the caller of `Invoke`, and the listeners after it don't run for that event.
 
 The broadcaster fits well with the container. Bind `IBroadcaster`, inject it, and register whole objects. Their methods marked with `[EventListener]` are picked up automatically, and each method's parameter type says which event it listens for.
 

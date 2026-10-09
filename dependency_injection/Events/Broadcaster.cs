@@ -121,51 +121,30 @@ namespace Keel.DependencyInjection.Events
             // Always an Action<T> for the T this event is keyed by, or null.
             private Delegate _value;
 
-            // _value's invocation list. Replaced on every change and never mutated, so Invoke iterates a snapshot.
-            private Delegate[] _listeners = Array.Empty<Delegate>();
-
             public bool IsEmpty => _value == null;
 
-            public int ListenerCount => _listeners.Length;
+            // Debug view only; allocates. Do not call it on hot paths.
+            public int ListenerCount =>
+                _value == null ? 0 : _value.GetInvocationList().Length;
 
-            public void AddListener(Delegate callback)
-            {
+            public void AddListener(Delegate callback) =>
                 _value = Delegate.Combine(_value, callback);
-                _listeners = _value.GetInvocationList();
-            }
 
-            public void RemoveListener(Delegate callback)
-            {
+            public void RemoveListener(Delegate callback) =>
                 _value = Delegate.Remove(_value, callback);
-                _listeners = _value?.GetInvocationList() ?? Array.Empty<Delegate>();
-            }
 
-            public void RemoveAllListeners()
-            {
+            public void RemoveAllListeners() =>
                 _value = null;
-                _listeners = Array.Empty<Delegate>();
-            }
 
-            public void Invoke<T>(T eventData)
-            {
-                // A throwing listener must not stop the remaining ones.
-                var listeners = _listeners;
-                for (var i = 0; i < listeners.Length; i++)
-                {
-                    try
-                    {
-                        ((Action<T>)listeners[i])(eventData);
-                    }
-                    catch (Exception e)
-                    {
-                        Logger.LogException(e);
-                    }
-                }
-            }
+            public void Invoke<T>(T eventData) =>
+                ((Action<T>)_value)?.Invoke(eventData);
 
             IEnumerable<string> IReadOnlyEvent.GetListeners()
             {
-                foreach (var handler in _listeners)
+                if (_value == null)
+                    yield break;
+
+                foreach (var handler in _value.GetInvocationList())
                     yield return $"{handler.Method.DeclaringType!.FullName}.{handler.Method.Name}";
             }
         }
