@@ -45,8 +45,8 @@ namespace Keel.DependencyInjection.Tests
             var listener = rootScope.Provide<MultiChannelListener>();
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
-            broadcaster.Invoke(channel: 1, new TextEvent("Channel 1 Data"));
-            broadcaster.Invoke(channel: 2, new TextEvent("Channel 2 Data"));
+            broadcaster.Invoke(new TextEvent("Channel 1 Data"), channel: 1);
+            broadcaster.Invoke(new TextEvent("Channel 2 Data"), channel: 2);
 
             Assert.Equal("Channel 1 Data", listener.Channel1Data);
             Assert.Equal("Channel 2 Data", listener.Channel2Data);
@@ -63,8 +63,8 @@ namespace Keel.DependencyInjection.Tests
             var listener = rootScope.Provide<MultiEventListener>();
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
-            broadcaster.Invoke(channel: 1, new TextEvent("Text Event"));
-            broadcaster.Invoke(channel: 1, new OtherTextEvent("Other Text Event"));
+            broadcaster.Invoke(new TextEvent("Text Event"), channel: 1);
+            broadcaster.Invoke(new OtherTextEvent("Other Text Event"), channel: 1);
 
             Assert.Equal("Text Event", listener.TextEventData);
             Assert.Equal("Other Text Event", listener.OtherTextEventData);
@@ -80,7 +80,7 @@ namespace Keel.DependencyInjection.Tests
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
             // Should not throw even with no listeners registered
-            broadcaster.Invoke(channel: 1, new TextEvent("Test Data"), requireReceiver: false);
+            broadcaster.Invoke(new TextEvent("Test Data"), channel: 1, requireReceiver: false);
         }
 
         [Fact]
@@ -94,7 +94,7 @@ namespace Keel.DependencyInjection.Tests
             var listener = rootScope.Provide<MultiParameterListener>();
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
-            broadcaster.Invoke(channel: 1, new MultiFieldEvent("StringValue", 42, true));
+            broadcaster.Invoke(new MultiFieldEvent("StringValue", 42, true), channel: 1);
 
             Assert.Equal("StringValue", listener.StringParam);
             Assert.Equal(42, listener.IntParam);
@@ -113,14 +113,14 @@ namespace Keel.DependencyInjection.Tests
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
             // Send event while registered
-            broadcaster.Invoke(channel: 1, new TextEvent("First Message"));
+            broadcaster.Invoke(new TextEvent("First Message"), channel: 1);
             Assert.Equal("First Message", listener.EventData);
 
             // Unregister
             listener.Unregister();
 
             // Send event after unregistration
-            broadcaster.Invoke(channel: 1, new TextEvent("Second Message"));
+            broadcaster.Invoke(new TextEvent("Second Message"), channel: 1);
             Assert.Equal("First Message", listener.EventData); // Should still be first message
         }
 
@@ -135,7 +135,7 @@ namespace Keel.DependencyInjection.Tests
             var listener = rootScope.Provide<NoParameterListener>();
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
-            broadcaster.Invoke(channel: 1, new EmptyEvent());
+            broadcaster.Invoke(new EmptyEvent(), channel: 1);
 
             Assert.True(listener.EventReceived);
         }
@@ -151,9 +151,9 @@ namespace Keel.DependencyInjection.Tests
             var listener = rootScope.Provide<CountingListener>();
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
-            broadcaster.Invoke(channel: 1, new NumberEvent(10));
-            broadcaster.Invoke(channel: 1, new NumberEvent(20));
-            broadcaster.Invoke(channel: 1, new NumberEvent(30));
+            broadcaster.Invoke(new NumberEvent(10), channel: 1);
+            broadcaster.Invoke(new NumberEvent(20), channel: 1);
+            broadcaster.Invoke(new NumberEvent(30), channel: 1);
 
             Assert.Equal(3, listener.InvocationCount);
             Assert.Equal(60, listener.Sum);
@@ -164,7 +164,7 @@ namespace Keel.DependencyInjection.Tests
             [Inject] private readonly IBroadcaster _broadcaster = null;
 
             public void SendEvent(string eventData) =>
-                _broadcaster.Invoke(channel: 1, new TextEvent(eventData));
+                _broadcaster.Invoke(new TextEvent(eventData), channel: 1);
         }
 
         private sealed class SecondScopeListener : IScopeListener
@@ -308,7 +308,7 @@ namespace Keel.DependencyInjection.Tests
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
             const string testData = "Broadcast to all";
-            broadcaster.Invoke(channel: 1, new TextEvent(testData));
+            broadcaster.Invoke(new TextEvent(testData), channel: 1);
 
             // Both listeners should receive the same event
             Assert.Equal(testData, listener1.ReceivedData);
@@ -327,7 +327,7 @@ namespace Keel.DependencyInjection.Tests
             var broadcaster = rootScope.Provide<IBroadcaster>();
 
             // First event
-            broadcaster.Invoke(channel: 1, new TextEvent("First"));
+            broadcaster.Invoke(new TextEvent("First"), channel: 1);
             Assert.Equal("First", listener.Data);
             Assert.Equal(1, listener.CallCount);
 
@@ -335,7 +335,7 @@ namespace Keel.DependencyInjection.Tests
             listener.Unregister();
 
             // Event while unregistered (should not be received)
-            broadcaster.Invoke(channel: 1, new TextEvent("Second"));
+            broadcaster.Invoke(new TextEvent("Second"), channel: 1);
             Assert.Equal("First", listener.Data); // Still first
             Assert.Equal(1, listener.CallCount); // Count unchanged
 
@@ -343,7 +343,7 @@ namespace Keel.DependencyInjection.Tests
             listener.Register();
 
             // Event after reregistration
-            broadcaster.Invoke(channel: 1, new TextEvent("Third"));
+            broadcaster.Invoke(new TextEvent("Third"), channel: 1);
             Assert.Equal("Third", listener.Data);
             Assert.Equal(2, listener.CallCount);
         }
@@ -431,10 +431,11 @@ namespace Keel.DependencyInjection.Tests
             var broadcaster = new Broadcaster();
             var received = new List<string>();
 
-            broadcaster.AddListener<TextEvent>(channel: 1, e => received.Add(e.Text));
+            // Channel passed positionally on purpose: it must bind to the channel overloads.
+            broadcaster.AddListener<TextEvent>(e => received.Add(e.Text), 1);
 
             Assert.False(broadcaster.Invoke(new TextEvent("Channel 0")));
-            Assert.True(broadcaster.Invoke(channel: 1, new TextEvent("Channel 1")));
+            Assert.True(broadcaster.Invoke(new TextEvent("Channel 1"), 1));
 
             Assert.Equal(["Channel 1"], received);
         }
@@ -486,36 +487,51 @@ namespace Keel.DependencyInjection.Tests
         }
 
         [Fact]
+        public void Test_VirtualListener_DifferentChannelsOnBaseAndOverride_SubscribesBoth()
+        {
+            var broadcaster = new Broadcaster();
+            var listener = new OverridingOnOtherChannelListener();
+
+            broadcaster.RegisterObject(listener);
+            Assert.True(broadcaster.Invoke(new TextEvent("One"), channel: 1));
+            Assert.True(broadcaster.Invoke(new TextEvent("Two"), channel: 2));
+
+            Assert.Equal(["Derived: One", "Derived: Two"], listener.Calls);
+
+            broadcaster.UnregisterObject(listener);
+            Assert.False(broadcaster.Invoke(new TextEvent("After unregister"), channel: 1));
+            Assert.False(broadcaster.Invoke(new TextEvent("After unregister"), channel: 2));
+        }
+
+        [Fact]
         public void Test_InvalidListenerSignature_IsSkipped_AndLogged()
         {
-            var errors = new ConcurrentQueue<string>();
-            var invalidListenerName = $"{nameof(InvalidSignatureListener)}.{InvalidSignatureListener.InvalidMethodName}";
+            var broadcaster = new Broadcaster();
+            var listener = new InvalidSignatureListener();
 
-            void OnLogReceived(LogLevel level, string message)
+            var errors = CaptureLogs(LogLevel.Error, $"{nameof(InvalidSignatureListener)}.{InvalidSignatureListener.InvalidMethodName}", () =>
             {
-                if (level == LogLevel.Error && message.Contains(invalidListenerName))
-                    errors.Enqueue(message);
-            }
-
-            Logger.LogReceivedThreaded += OnLogReceived;
-            try
-            {
-                var broadcaster = new Broadcaster();
-                var listener = new InvalidSignatureListener();
-
                 broadcaster.RegisterObject(listener);
-                Assert.True(broadcaster.Invoke(new TextEvent("Valid")));
-                Assert.Equal("Valid", listener.ValidData);
 
                 // The method cache is per type, so a second registration must not log again.
                 broadcaster.RegisterObject(new InvalidSignatureListener());
-            }
-            finally
-            {
-                Logger.LogReceivedThreaded -= OnLogReceived;
-            }
+            });
 
             Assert.Single(errors);
+            Assert.True(broadcaster.Invoke(new TextEvent("Valid")));
+            Assert.Equal("Valid", listener.ValidData);
+        }
+
+        [Fact]
+        public void Test_RefStructListener_IsSkipped_AndLogged()
+        {
+            var broadcaster = new Broadcaster();
+
+            var errors = CaptureLogs(LogLevel.Error, $"{nameof(RefStructListener)}.{RefStructListener.MethodName}", () =>
+                broadcaster.RegisterObject(new RefStructListener()));
+
+            Assert.Single(errors);
+            Assert.Empty(broadcaster.ChannelEventCollection);
         }
 
         [Fact]
@@ -524,10 +540,28 @@ namespace Keel.DependencyInjection.Tests
             var broadcaster = new Broadcaster();
 
             Assert.Throws<ArgumentNullException>(() => broadcaster.AddListener<TextEvent>(null));
-            Assert.Throws<ArgumentNullException>(() => broadcaster.AddListener<TextEvent>(channel: 1, null));
+            Assert.Throws<ArgumentNullException>(() => broadcaster.AddListener<TextEvent>(null, channel: 1));
 
             Assert.False(broadcaster.Invoke(new TextEvent("Nobody")));
-            Assert.False(broadcaster.Invoke(channel: 1, new TextEvent("Nobody")));
+            Assert.False(broadcaster.Invoke(new TextEvent("Nobody"), channel: 1));
+        }
+
+        [Fact]
+        public void Test_ThrowingListener_IsLogged_AndDoesNotStopOthers()
+        {
+            const string failure = "Listener failure from " + nameof(Test_ThrowingListener_IsLogged_AndDoesNotStopOthers);
+            var broadcaster = new Broadcaster();
+            var calls = new List<string>();
+
+            broadcaster.AddListener<TextEvent>(_ => calls.Add("First"));
+            broadcaster.AddListener<TextEvent>(_ => throw new InvalidOperationException(failure));
+            broadcaster.AddListener<TextEvent>(_ => calls.Add("Third"));
+
+            var exceptions = CaptureLogs(LogLevel.Exception, failure, () =>
+                Assert.True(broadcaster.Invoke(new TextEvent("Dispatch"))));
+
+            Assert.Equal(["First", "Third"], calls);
+            Assert.Single(exceptions);
         }
 
         [Fact]
@@ -585,6 +619,53 @@ namespace Keel.DependencyInjection.Tests
             Assert.Equal(["Changer", "Added"], calls);
         }
 
+        [Fact]
+        public void Test_DebugView_TracksListeners_AndDropsEmptyEntries()
+        {
+            var broadcaster = new Broadcaster();
+            Action<TextEvent> first = _ => { };
+            Action<TextEvent> second = _ => { };
+
+            broadcaster.AddListener(first, channel: 1);
+            broadcaster.AddListener(second, channel: 1);
+
+            var (channel, events) = Assert.Single(broadcaster.ChannelEventCollection);
+            Assert.Equal(1, channel);
+            var (eventType, targetEvent) = Assert.Single(events);
+            Assert.Equal(typeof(TextEvent), eventType);
+            Assert.Equal(2, targetEvent.ListenerCount);
+            Assert.Equal(2, targetEvent.GetListeners().Count());
+
+            broadcaster.RemoveListener(first, channel: 1);
+            Assert.Equal(1, targetEvent.ListenerCount);
+
+            broadcaster.RemoveListener(second, channel: 1);
+            Assert.Empty(broadcaster.ChannelEventCollection);
+        }
+
+        private static List<string> CaptureLogs(LogLevel level, string filter, Action action)
+        {
+            // xUnit runs test classes in parallel, so keep only the messages this test is looking for.
+            var messages = new ConcurrentQueue<string>();
+            void OnLogReceived(LogLevel receivedLevel, string message)
+            {
+                if (receivedLevel == level && message.Contains(filter))
+                    messages.Enqueue(message);
+            }
+
+            Logger.LogReceivedThreaded += OnLogReceived;
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Logger.LogReceivedThreaded -= OnLogReceived;
+            }
+
+            return messages.ToList();
+        }
+
         private class PrivateListenerBase
         {
             public string BaseData;
@@ -620,6 +701,22 @@ namespace Keel.DependencyInjection.Tests
                 Calls.Add($"Derived: {e.Text}");
         }
 
+        private class ChannelVirtualListenerBase
+        {
+            public readonly List<string> Calls = new();
+
+            [EventListener(channel: 1)]
+            protected virtual void OnEvent(TextEvent e) =>
+                Calls.Add($"Base: {e.Text}");
+        }
+
+        private sealed class OverridingOnOtherChannelListener : ChannelVirtualListenerBase
+        {
+            [EventListener(channel: 2)]
+            protected override void OnEvent(TextEvent e) =>
+                Calls.Add($"Derived: {e.Text}");
+        }
+
         // Only Test_InvalidListenerSignature_IsSkipped_AndLogged may register this type:
         // the method cache is static per type, so the error is logged on the first lookup only.
         private sealed class InvalidSignatureListener
@@ -634,6 +731,17 @@ namespace Keel.DependencyInjection.Tests
             [EventListener]
             private void OnInvalidSignature(string text) =>
                 ValidData = text;
+        }
+
+        // Only Test_RefStructListener_IsSkipped_AndLogged may register this type, for the same reason.
+        private sealed class RefStructListener
+        {
+            public const string MethodName = nameof(OnSpan);
+
+            [EventListener]
+            private void OnSpan(Span<int> values)
+            {
+            }
         }
     }
 }

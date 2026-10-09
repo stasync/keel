@@ -121,30 +121,51 @@ namespace Keel.DependencyInjection.Events
             // Always an Action<T> for the T this event is keyed by, or null.
             private Delegate _value;
 
+            // _value's invocation list. Replaced on every change and never mutated, so Invoke iterates a snapshot.
+            private Delegate[] _listeners = Array.Empty<Delegate>();
+
             public bool IsEmpty => _value == null;
 
-            // Debug view only; allocates. Do not call it on hot paths.
-            public int ListenerCount =>
-                _value == null ? 0 : _value.GetInvocationList().Length;
+            public int ListenerCount => _listeners.Length;
 
-            public void AddListener(Delegate callback) =>
+            public void AddListener(Delegate callback)
+            {
                 _value = Delegate.Combine(_value, callback);
+                _listeners = _value.GetInvocationList();
+            }
 
-            public void RemoveListener(Delegate callback) =>
+            public void RemoveListener(Delegate callback)
+            {
                 _value = Delegate.Remove(_value, callback);
+                _listeners = _value?.GetInvocationList() ?? Array.Empty<Delegate>();
+            }
 
-            public void RemoveAllListeners() =>
+            public void RemoveAllListeners()
+            {
                 _value = null;
+                _listeners = Array.Empty<Delegate>();
+            }
 
-            public void Invoke<T>(T eventData) =>
-                ((Action<T>)_value)?.Invoke(eventData);
+            public void Invoke<T>(T eventData)
+            {
+                // A throwing listener must not stop the remaining ones.
+                var listeners = _listeners;
+                for (var i = 0; i < listeners.Length; i++)
+                {
+                    try
+                    {
+                        ((Action<T>)listeners[i])(eventData);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.LogException(e);
+                    }
+                }
+            }
 
             IEnumerable<string> IReadOnlyEvent.GetListeners()
             {
-                if (_value == null)
-                    yield break;
-
-                foreach (var handler in _value.GetInvocationList())
+                foreach (var handler in _listeners)
                     yield return $"{handler.Method.DeclaringType!.FullName}.{handler.Method.Name}";
             }
         }
@@ -171,25 +192,26 @@ namespace Keel.DependencyInjection.Events
 
         #region ADD
         public void AddListener<T>(Action<T> listener) where T : struct =>
-            AddListener(channel: 0, listener);
+            AddListener(listener, channel: 0);
 
-        public void AddListener<T>(int channel, Action<T> listener) where T : struct =>
+        public void AddListener<T>(Action<T> listener, int channel) where T : struct =>
             _eventCollectionPerChannel.AddListener(channel, typeof(T), listener ?? throw new ArgumentNullException(nameof(listener)));
         #endregion
 
         #region REMOVE
         public void RemoveListener<T>(Action<T> listener) where T : struct =>
-            RemoveListener(channel: 0, listener);
+            RemoveListener(listener, channel: 0);
 
-        public void RemoveListener<T>(int channel, Action<T> listener) where T : struct =>
+        public void RemoveListener<T>(Action<T> listener, int channel) where T : struct =>
             _eventCollectionPerChannel.RemoveListener(channel, typeof(T), listener);
         #endregion
 
+        // Keep requireReceiver's default in sync with IBroadcaster: C# takes it from the type the call goes through.
         #region INVOKE
         public bool Invoke<T>(T eventData, bool requireReceiver = false) where T : struct =>
-            Invoke(channel: 0, eventData, requireReceiver);
+            Invoke(eventData, channel: 0, requireReceiver);
 
-        public bool Invoke<T>(int channel, T eventData, bool requireReceiver = false) where T : struct =>
+        public bool Invoke<T>(T eventData, int channel, bool requireReceiver = false) where T : struct =>
             _eventCollectionPerChannel.Invoke(channel, eventData, requireReceiver);
         #endregion
     }

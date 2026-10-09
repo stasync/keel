@@ -38,7 +38,7 @@ namespace Keel.DependencyInjection.Events.Internal
         private static EventListenerMethod[] CollectMethods(Type targetType)
         {
             var result = new List<EventListenerMethod>();
-            var visited = new HashSet<MethodInfo>();
+            var visited = new HashSet<(MethodInfo, int)>();
 
             // GetMethods() never returns private methods declared on base types, so walk the hierarchy.
             for (var type = targetType; type != null && type != typeof(object); type = type.BaseType)
@@ -49,17 +49,31 @@ namespace Keel.DependencyInjection.Events.Internal
                     if (attribute == null)
                         continue;
 
-                    // An overridden virtual listener must be registered once; the delegate dispatches virtually anyway.
-                    if (!visited.Add(methodInfo.GetBaseDefinition()))
+                    // Each attribute is one subscription. The base and the override marked for the same channel are
+                    // the same subscription, so it's registered once; the delegate dispatches virtually anyway.
+                    if (!visited.Add((methodInfo.GetBaseDefinition(), attribute.Channel)))
                         continue;
 
                     if (!TryGetEventType(methodInfo, out var eventType))
                     {
-                        Logger.LogError($"Invalid event listener '{type.FullName}.{methodInfo.Name}'. Make sure signature is defined as 'void {methodInfo.Name}(TEvent eventData)', where 'TEvent' is a struct.");
+                        Logger.LogError($"Invalid event listener '{type.FullName}.{methodInfo.Name}'. Make sure signature is defined as 'void {methodInfo.Name}(TEvent eventData)', where 'TEvent' is a struct and not a ref struct.");
                         continue;
                     }
 
-                    result.Add(new EventListenerMethod(methodInfo, eventType, attribute.Channel));
+                    // MakeGenericType can fail on AOT runtimes (e.g. IL2CPP) when Action<TEvent> was never generated.
+                    // Skip just this listener, so the type is still cached and the error is logged once.
+                    EventListenerMethod listener;
+                    try
+                    {
+                        listener = new EventListenerMethod(methodInfo, eventType, attribute.Channel);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.LogError($"Skipping event listener '{type.FullName}.{methodInfo.Name}': unable to build Action<{eventType.FullName}>. {e.Message}");
+                        continue;
+                    }
+
+                    result.Add(listener);
                 }
             }
 
@@ -78,9 +92,9 @@ namespace Keel.DependencyInjection.Events.Internal
                 return false;
 
             // ByRef types (in/ref/out) are not value types, so they are rejected here too.
-            // Nullable<T> can't satisfy the 'struct' constraint of IBroadcaster.Invoke<T>, so it could never fire.
+            // Nullable<T> and ref structs can't satisfy the 'struct' constraint of IBroadcaster.Invoke<T>, so they could never fire.
             var parameterType = parameters[0].ParameterType;
-            if (!parameterType.IsValueType || Nullable.GetUnderlyingType(parameterType) != null)
+            if (!parameterType.IsValueType || parameterType.IsByRefLike || Nullable.GetUnderlyingType(parameterType) != null)
                 return false;
 
             eventType = parameterType;
