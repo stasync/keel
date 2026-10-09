@@ -288,48 +288,39 @@ Circular dependencies (A needs B, B needs A) are detected when the scope is crea
 
 ## Events
 
-The event system lets parts of your program talk to each other without holding references to each other. One side sends an event with a numeric code, and anyone listening for that code receives it.
+The event system lets parts of your program talk to each other without holding references to each other. An event is a struct: its type says what happened, and its fields carry the data. Anyone listening for that type receives it.
 
 ```csharp
 using System;
 using Keel.DependencyInjection.Events;
 
-const ushort PlayerJoined = 1;
-
 var events = new Broadcaster();
 
-events.AddListener(PlayerJoined, args =>
-{
-    var p = new EventParameters(args);
-    var name = p.Next<string>();
-    var level = p.Next<int>();
-    Console.WriteLine($"{name} joined at level {level}");
-});
+events.AddListener<PlayerJoined>(e =>
+    Console.WriteLine($"{e.Name} joined at level {e.Level}"));
 
-events.Invoke(PlayerJoined, requireReceiver: false, "Alice", 12);
+events.Invoke(new PlayerJoined("Alice", 12));
+
+public readonly record struct PlayerJoined(string Name, int Level);
 ```
 
-Set `requireReceiver` to `true` if nobody listening would be a mistake. An error is then logged whenever an event goes unheard.
+On C# 9 (for example in Unity) there is no `record struct`, so declare the event as a plain `readonly struct` with a constructor.
 
-The broadcaster fits well with the container. Bind `IBroadcaster`, inject it, and register whole objects. Their methods marked with `[EventListener]` are picked up automatically.
+The event is passed to listeners by value, with no arrays and no boxing, and the compiler checks its fields on both sides. `Invoke` returns whether anyone was listening. Set `requireReceiver: true` if nobody listening would be a mistake. An error is then logged whenever an event goes unheard.
+
+The broadcaster fits well with the container. Bind `IBroadcaster`, inject it, and register whole objects. Their methods marked with `[EventListener]` are picked up automatically, and each method's parameter type says which event it listens for.
 
 ```csharp
-public static class GameEvents
-{
-    public const ushort PlayerJoined = 1;
-}
-
 public sealed class Scoreboard : IScopeListener
 {
     [Inject] private readonly IBroadcaster _events = null;
 
     public void OnResolved() => _events.RegisterObject(this);
 
-    [EventListener(GameEvents.PlayerJoined)]
-    private void OnPlayerJoined(object[] args)
+    [EventListener]
+    private void OnPlayerJoined(PlayerJoined e)
     {
-        var name = new EventParameters(args).Next<string>();
-        // update the scoreboard
+        // update the scoreboard with e.Name and e.Level
     }
 }
 ```
@@ -339,7 +330,11 @@ binder.BindToDefaultImplementation<IBroadcaster>();
 binder.BindToSelf<Scoreboard>();
 ```
 
-Events can also be split into channels, so the same code can mean different things in different parts of the program. Pass `channel` to `AddListener`, `Invoke` and `[EventListener]`.
+A listener must be declared as `void Method(TEvent e)`, where `TEvent` is a struct. Methods marked with `[EventListener]` that have any other signature are skipped, and an error is logged.
+
+To subscribe an existing method rather than a lambda, name the event type explicitly: `events.AddListener<PlayerJoined>(OnPlayerJoined)`. C# can't infer it from a method group.
+
+Events can also be split into channels, so the same event type can be routed to different listeners in different parts of the program. Pass `channel` to `AddListener`, `Invoke` and `[EventListener]`.
 
 ## Utils
 

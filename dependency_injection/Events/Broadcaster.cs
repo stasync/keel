@@ -13,37 +13,37 @@ namespace Keel.DependencyInjection.Events
             private readonly Dictionary<int, InternalEventCollection> _value = new();
             public int Count => _value.Count;
 
-            public void AddListener(int channel, int eventCode, Action<object[]> listener)
+            public void AddListener(int channel, Type eventType, Delegate listener)
             {
                 if (!_value.TryGetValue(channel, out var internalEventCollection))
                     _value.Add(channel, internalEventCollection = new InternalEventCollection());
 
-                internalEventCollection.AddListener(eventCode, listener);
+                internalEventCollection.AddListener(eventType, listener);
             }
 
-            public void RemoveListener(int channel, int eventCode, Action<object[]> listener)
+            public void RemoveListener(int channel, Type eventType, Delegate listener)
             {
                 if (!_value.TryGetValue(channel, out var collection))
                     return;
 
-                collection.RemoveListener(eventCode, listener);
+                collection.RemoveListener(eventType, listener);
                 if (collection.Count == 0)
                     _value.Remove(channel);
             }
 
-            public bool Invoke(int channel, int eventCode, bool requireReceiver, params object[] args)
+            public bool Invoke<T>(int channel, T eventData, bool requireReceiver)
             {
                 if (_value.TryGetValue(channel, out var collection))
                 {
-                    var invoked = collection.Invoke(eventCode, args);
+                    var invoked = collection.Invoke(eventData);
                     if (!invoked && requireReceiver)
-                        Logger.LogError($"Unable to find any event with code '{eventCode}' that is registered for channel '{channel}'.");
+                        Logger.LogError($"Unable to find any listener for event '{typeof(T).FullName}' that is registered for channel '{channel}'.");
 
                     return invoked;
                 }
 
                 if (requireReceiver)
-                    Logger.LogError($"Unable to invoke event with code '{eventCode}'. Make sure receiver (handler) is registered for channel '{channel}', or set '{nameof(requireReceiver)}' to 'false'.");
+                    Logger.LogError($"Unable to invoke event '{typeof(T).FullName}'. Make sure receiver (handler) is registered for channel '{channel}', or set '{nameof(requireReceiver)}' to 'false'.");
 
                 return false;
             }
@@ -69,32 +69,33 @@ namespace Keel.DependencyInjection.Events
         private sealed class InternalEventCollection : IReadOnlyEventCollection
         {
             public int Count => _value.Count;
-            private readonly Dictionary<int, InternalEvent> _value = new();
+            private readonly Dictionary<Type, InternalEvent> _value = new();
 
-            public void AddListener(int eventCode, Action<object[]> listener)
+            public void AddListener(Type eventType, Delegate listener)
             {
-                if (!_value.TryGetValue(eventCode, out var targetEvent))
-                    _value.Add(eventCode, targetEvent = new InternalEvent());
+                if (!_value.TryGetValue(eventType, out var targetEvent))
+                    _value.Add(eventType, targetEvent = new InternalEvent());
 
                 targetEvent.AddListener(listener);
             }
 
-            public bool Invoke(int eventCode, params object[] args)
+            public bool Invoke<T>(T eventData)
             {
-                if (_value.TryGetValue(eventCode, out var targetEvent))
-                    targetEvent.Invoke(args);
+                if (!_value.TryGetValue(typeof(T), out var targetEvent))
+                    return false;
 
-                return targetEvent != null;
+                targetEvent.Invoke(eventData);
+                return true;
             }
 
-            public void RemoveListener(int eventCode, Action<object[]> listener)
+            public void RemoveListener(Type eventType, Delegate listener)
             {
-                if (!_value.TryGetValue(eventCode, out var targetEvent))
+                if (!_value.TryGetValue(eventType, out var targetEvent))
                     return;
 
                 targetEvent.RemoveListener(listener);
-                if (targetEvent.ListenerCount == 0)
-                    _value.Remove(eventCode);
+                if (targetEvent.IsEmpty)
+                    _value.Remove(eventType);
             }
 
             public void Clear()
@@ -105,10 +106,10 @@ namespace Keel.DependencyInjection.Events
                 _value.Clear();
             }
 
-            public IEnumerator<KeyValuePair<int, IReadOnlyEvent>> GetEnumerator()
+            public IEnumerator<KeyValuePair<Type, IReadOnlyEvent>> GetEnumerator()
             {
                 foreach (var kvp in _value)
-                    yield return new KeyValuePair<int, IReadOnlyEvent>(kvp.Key, kvp.Value);
+                    yield return new KeyValuePair<Type, IReadOnlyEvent>(kvp.Key, kvp.Value);
             }
 
             IEnumerator IEnumerable.GetEnumerator() =>
@@ -117,29 +118,33 @@ namespace Keel.DependencyInjection.Events
 
         private sealed class InternalEvent : IReadOnlyEvent
         {
-            private event Action<object[]> Value;
+            // Always an Action<T> for the T this event is keyed by, or null.
+            private Delegate _value;
 
+            public bool IsEmpty => _value == null;
+
+            // Debug view only; allocates. Do not call it on hot paths.
             public int ListenerCount =>
-                Value == null ? 0 : Value.GetInvocationList().Length;
+                _value == null ? 0 : _value.GetInvocationList().Length;
 
-            public void AddListener(Action<object[]> callback) =>
-                Value += callback;
+            public void AddListener(Delegate callback) =>
+                _value = Delegate.Combine(_value, callback);
 
-            public void RemoveListener(Action<object[]> callback) =>
-                Value -= callback;
+            public void RemoveListener(Delegate callback) =>
+                _value = Delegate.Remove(_value, callback);
 
             public void RemoveAllListeners() =>
-                Value = null;
+                _value = null;
 
-            public void Invoke(params object[] args) =>
-                Value?.Invoke(args);
+            public void Invoke<T>(T eventData) =>
+                ((Action<T>)_value)?.Invoke(eventData);
 
             IEnumerable<string> IReadOnlyEvent.GetListeners()
             {
-                if (Value == null)
+                if (_value == null)
                     yield break;
 
-                foreach (var handler in Value.GetInvocationList())
+                foreach (var handler in _value.GetInvocationList())
                     yield return $"{handler.Method.DeclaringType!.FullName}.{handler.Method.Name}";
             }
         }
@@ -151,44 +156,41 @@ namespace Keel.DependencyInjection.Events
             _eventCollectionPerChannel.Clear();
 
         #region AUTO_REGISTRATION
-        public void RegisterObject(object targetObject) =>
-            ProcessObject(targetObject, AddListener);
-
-        public void UnregisterObject(object targetObject) =>
-            ProcessObject(targetObject, RemoveListener);
-
-        private static void ProcessObject(object targetObject, Action<int, ushort, Action<object[]>> processor)
+        public void RegisterObject(object targetObject)
         {
-            foreach (var (methodInfo, attribute) in EventListenerMethodCache.GetMethods(targetObject.GetType()))
-            {
-                if (methodInfo.CreateDelegate(typeof(Action<object[]>), targetObject) is Action<object[]> action)
-                    processor(attribute.Channel, attribute.EventCode, action);
-            }
+            foreach (var listener in EventListenerMethodCache.GetMethods(targetObject.GetType()))
+                _eventCollectionPerChannel.AddListener(listener.Channel, listener.EventType, listener.CreateDelegate(targetObject));
+        }
+
+        public void UnregisterObject(object targetObject)
+        {
+            foreach (var listener in EventListenerMethodCache.GetMethods(targetObject.GetType()))
+                _eventCollectionPerChannel.RemoveListener(listener.Channel, listener.EventType, listener.CreateDelegate(targetObject));
         }
         #endregion
 
         #region ADD
-        public void AddListener(ushort eventCode, Action<object[]> listener) =>
-            AddListener(channel: 0, eventCode, listener);
+        public void AddListener<T>(Action<T> listener) where T : struct =>
+            AddListener(channel: 0, listener);
 
-        public void AddListener(int channel, ushort eventCode, Action<object[]> listener) =>
-            _eventCollectionPerChannel.AddListener(channel, eventCode, listener);
+        public void AddListener<T>(int channel, Action<T> listener) where T : struct =>
+            _eventCollectionPerChannel.AddListener(channel, typeof(T), listener ?? throw new ArgumentNullException(nameof(listener)));
         #endregion
 
         #region REMOVE
-        public void RemoveListener(ushort eventCode, Action<object[]> listener) =>
-            RemoveListener(channel: 0, eventCode, listener);
+        public void RemoveListener<T>(Action<T> listener) where T : struct =>
+            RemoveListener(channel: 0, listener);
 
-        public void RemoveListener(int channel, ushort eventCode, Action<object[]> listener) =>
-            _eventCollectionPerChannel.RemoveListener(channel, eventCode, listener);
+        public void RemoveListener<T>(int channel, Action<T> listener) where T : struct =>
+            _eventCollectionPerChannel.RemoveListener(channel, typeof(T), listener);
         #endregion
 
         #region INVOKE
-        public bool Invoke(ushort eventCode, bool requireReceiver, params object[] args) =>
-            Invoke(channel: 0, eventCode, requireReceiver, args);
+        public bool Invoke<T>(T eventData, bool requireReceiver = false) where T : struct =>
+            Invoke(channel: 0, eventData, requireReceiver);
 
-        public bool Invoke(int channel, ushort eventCode, bool requireReceiver, params object[] args) =>
-            _eventCollectionPerChannel.Invoke(channel, eventCode, requireReceiver, args);
+        public bool Invoke<T>(int channel, T eventData, bool requireReceiver = false) where T : struct =>
+            _eventCollectionPerChannel.Invoke(channel, eventData, requireReceiver);
         #endregion
     }
 }
